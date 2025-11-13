@@ -12,6 +12,7 @@ const usePermittedWarehouses = () => {
     const { warehouses, currentUser, userWarehouseAccess } = useInventoryState();
     
     return useMemo(() => {
+        if (!currentUser) return [];
         if (currentUser.role === 'ADMINISTRADOR') {
             return warehouses;
         }
@@ -162,7 +163,7 @@ const DashboardView = () => {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                  <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-                 {currentUser.role === 'ADMINISTRADOR' && (
+                 {currentUser?.role === 'ADMINISTRADOR' && (
                     <Button onClick={handleGenerateGeneralReport} className="bg-purple-600 hover:bg-purple-700 w-full md:w-auto">
                         {ICONS.document}
                         Generar Reporte General
@@ -711,8 +712,8 @@ const ProductsView = () => {
     const [modal, setModal] = useState<'add' | 'edit' | 'adjust' | 'detail' | 'transfer' | 'import' | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-    const canManageProducts = currentUser.role === 'ADMINISTRADOR' || currentUser.role === 'GERENTE';
-    const canDeleteProducts = currentUser.role === 'ADMINISTRADOR';
+    const canManageProducts = currentUser?.role === 'ADMINISTRADOR' || currentUser?.role === 'GERENTE';
+    const canDeleteProducts = currentUser?.role === 'ADMINISTRADOR';
 
 
     const productTotals = useMemo(() => {
@@ -887,7 +888,7 @@ const WarehousesView = ({ onWarehouseSelect }: { onWarehouseSelect: (id: string)
                 <h2 className="text-2xl font-bold text-white">Gestión de Almacenes</h2>
                 <div className="flex items-center gap-4">
                     <Button onClick={handleExport} className="bg-green-600 hover:bg-green-700">{ICONS.export} Exportar a CSV</Button>
-                    {currentUser.role === 'ADMINISTRADOR' && <Button onClick={() => setIsModalOpen(true)}>{ICONS.plus} Añadir Almacén</Button>}
+                    {currentUser?.role === 'ADMINISTRADOR' && <Button onClick={() => setIsModalOpen(true)}>{ICONS.plus} Añadir Almacén</Button>}
                 </div>
             </div>
             <div className="overflow-x-auto">
@@ -996,7 +997,8 @@ const LogView = () => {
     const [showColumnFilter, setShowColumnFilter] = useState(false);
     const columnFilterRef = useRef<HTMLDivElement>(null);
 
-    const columnConfig = useMemo(() => ({
+    // FIX: Add explicit type to columnConfig to prevent type inference issues with Object.entries
+    const columnConfig: Record<string, { header: string }> = useMemo(() => ({
         timestamp: { header: "Fecha y Hora" },
         product: { header: "Producto" },
         user: { header: "Usuario" },
@@ -1270,7 +1272,7 @@ const UsersView = () => {
                                 <td className="px-6 py-4">
                                     <div className="flex justify-center space-x-2">
                                         <button title="Editar" onClick={() => { setSelectedUser(u); setModal('edit'); }} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors">{ICONS.edit}</button>
-                                        {u.id !== currentUser.id && (
+                                        {u.id !== currentUser?.id && (
                                             <button title="Eliminar" onClick={() => dispatch({type: 'DELETE_USER', payload: {userId: u.id}})} className="p-2 text-red-500 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors">{ICONS.trash}</button>
                                         )}
                                     </div>
@@ -1289,6 +1291,7 @@ const UsersView = () => {
 const AppContent = () => {
     const [view, setView] = useState<View>('dashboard');
     const { currentUser } = useInventoryState();
+    const dispatch = useInventoryDispatch();
 
     const navItems: { id: View, name: string, icon: React.ReactNode }[] = [
         { id: 'dashboard', name: 'Dashboard', icon: ICONS.dashboard },
@@ -1299,7 +1302,7 @@ const AppContent = () => {
     ];
 
     const visibleNavItems = navItems.filter(item => 
-        item.id !== 'users' || currentUser.role === 'ADMINISTRADOR'
+        item.id !== 'users' || currentUser?.role === 'ADMINISTRADOR'
     );
 
     const renderView = () => {
@@ -1308,10 +1311,12 @@ const AppContent = () => {
             case 'products': return <ProductsView />;
             case 'warehouses': return <WarehousesSection />;
             case 'log': return <LogView />;
-            case 'users': return currentUser.role === 'ADMINISTRADOR' ? <UsersView /> : <DashboardView/>;
+            case 'users': return currentUser?.role === 'ADMINISTRADOR' ? <UsersView /> : <DashboardView/>;
             default: return <DashboardView />;
         }
     };
+
+    if (!currentUser) return null;
 
     return (
         <div className="flex h-screen bg-gray-900 text-gray-300">
@@ -1335,11 +1340,18 @@ const AppContent = () => {
                 </nav>
             </aside>
             <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-end items-center">
+                <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-end items-center gap-4">
                     <div className="text-right">
                         <p className="font-semibold text-white">{currentUser.name}</p>
                         <p className="text-xs text-gray-400">{currentUser.role}</p>
                     </div>
+                    <button 
+                        onClick={() => dispatch({ type: 'LOGOUT' })} 
+                        title="Cerrar Sesión"
+                        className="p-2 text-gray-400 hover:text-white hover:bg-red-600/50 rounded-md transition-colors"
+                    >
+                        {ICONS.logout}
+                    </button>
                 </header>
                 <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-900 p-8">
                     {renderView()}
@@ -1349,31 +1361,74 @@ const AppContent = () => {
     );
 }
 
-const LoadingScreen = () => (
-    <div className="bg-gray-900 min-h-screen flex flex-col justify-center items-center text-white">
-        <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="text-lg mt-4">Cargando Sistema de Inventario...</p>
-    </div>
-);
+const LoginScreen = () => {
+    const { users } = useInventoryState();
+    const dispatch = useInventoryDispatch();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+        if (user) {
+            // En una app real, aquí se validaría la contraseña con un hash
+            dispatch({ type: 'LOGIN', payload: { user } });
+        } else {
+            setError('Correo o contraseña incorrectos.');
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center text-white p-4">
+            <div className="w-full max-w-md">
+                <div className="flex items-center justify-center mb-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-blue-500 mr-3"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.03 1.125 0 1.131.094 1.976 1.057 1.976 2.192V7.5M12 14.25a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H3.375a2.25 2.25 0 0 0-2.25 2.25v10.5a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                    <h1 className="text-3xl font-bold text-white">Inventario Simple</h1>
+                </div>
+                <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-8">
+                    <h2 className="text-2xl font-semibold text-center text-gray-200 mb-6">Iniciar Sesión</h2>
+                    <form onSubmit={handleLogin} className="space-y-6">
+                        <Input
+                            label="Correo Electrónico"
+                            type="email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            required
+                            autoComplete="email"
+                        />
+                        <Input
+                            label="Contraseña"
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            required
+                            autoComplete="current-password"
+                        />
+                        {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+                        <Button type="submit" className="w-full !py-3 !text-base">
+                            Ingresar
+                        </Button>
+                    </form>
+                </div>
+                <div className="text-center mt-4 text-xs text-gray-500">
+                    <p>Usuarios de prueba:</p>
+                    <p>admin@dominio.com | gerente@dominio.com | empleado@dominio.com</p>
+                    <p>(Cualquier contraseña es válida)</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const App = () => {
-    const [isReady, setIsReady] = useState(false);
+    const { currentUser } = useInventoryState();
 
-    useEffect(() => {
-        const interval = setInterval(() => {
-            if (typeof window.QRious === 'function') {
-                setIsReady(true);
-                clearInterval(interval);
-            }
-        }, 100);
-        return () => clearInterval(interval);
-    }, []);
-
-    if (!isReady) {
-        return <LoadingScreen />;
+    if (!currentUser) {
+        return <LoginScreen />;
     }
 
     return <AppContent />;

@@ -17,7 +17,7 @@ interface AppState {
   logs: LogEntry[];
   users: User[];
   userWarehouseAccess: UserWarehouseAccess[];
-  currentUser: User; // Simula el usuario logueado
+  currentUser: User | null; // Simula el usuario logueado
 }
 
 const initialState: AppState = {
@@ -27,10 +27,12 @@ const initialState: AppState = {
   logs: mockLogs,
   users: mockUsers,
   userWarehouseAccess: mockUserWarehouseAccess,
-  currentUser: mockUsers[0], // Por defecto, logueado como el primer usuario (Admin)
+  currentUser: null, // Nadie está logueado al inicio
 };
 
 type Action =
+  | { type: 'LOGIN'; payload: { user: User } }
+  | { type: 'LOGOUT' }
   | { type: 'ADD_PRODUCT'; payload: { product: Omit<Product, 'id'> } }
   | { type: 'BULK_ADD_PRODUCTS'; payload: { products: Omit<Product, 'id'>[] } }
   | { type: 'UPDATE_PRODUCT'; payload: { product: Product } }
@@ -43,7 +45,14 @@ type Action =
   | { type: 'DELETE_USER'; payload: { userId: string } };
 
 const reducer = (state: AppState, action: Action): AppState => {
+  const currentUser = state.currentUser;
+
   switch (action.type) {
+    case 'LOGIN':
+      return { ...state, currentUser: action.payload.user };
+    case 'LOGOUT':
+      return { ...state, currentUser: null };
+
     case 'ADD_WAREHOUSE': {
       const newWarehouse: Warehouse = {
         ...action.payload.warehouse,
@@ -55,6 +64,7 @@ const reducer = (state: AppState, action: Action): AppState => {
       };
     }
     case 'ADD_PRODUCT': {
+      if (!currentUser) return state;
       const { product } = action.payload;
       const newProduct: Product = {
         ...product,
@@ -71,7 +81,7 @@ const reducer = (state: AppState, action: Action): AppState => {
           quantityChange: 0,
           newQuantityInWarehouse: 0,
           details: 'Producto nuevo añadido al sistema.',
-          user: state.currentUser.name,
+          user: currentUser.name,
       };
 
       return {
@@ -81,6 +91,7 @@ const reducer = (state: AppState, action: Action): AppState => {
       };
     }
     case 'BULK_ADD_PRODUCTS': {
+        if (!currentUser) return state;
         const { products: productsToAdd } = action.payload;
         const newProducts: Product[] = [];
         const newLogs: LogEntry[] = [];
@@ -102,7 +113,7 @@ const reducer = (state: AppState, action: Action): AppState => {
                 quantityChange: 0,
                 newQuantityInWarehouse: 0,
                 details: 'Producto añadido por carga masiva.',
-                user: state.currentUser.name,
+                user: currentUser.name,
             });
         });
 
@@ -126,6 +137,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         return { ...state, products, inventory };
     }
     case 'ADJUST_STOCK': {
+        if (!currentUser) return state;
         const { productId, warehouseId, quantityChange, type, details } = action.payload;
         
         const product = state.products.find(p => p.id === productId);
@@ -160,7 +172,7 @@ const reducer = (state: AppState, action: Action): AppState => {
             quantityChange,
             newQuantityInWarehouse,
             details,
-            user: state.currentUser.name,
+            user: currentUser.name,
         };
 
         return {
@@ -170,6 +182,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         };
     }
     case 'TRANSFER_STOCK': {
+        if (!currentUser) return state;
         const { productId, fromWarehouseId, toWarehouseId, quantity, details } = action.payload;
         const product = state.products.find(p => p.id === productId);
         const fromWarehouse = state.warehouses.find(w => w.id === fromWarehouseId);
@@ -201,7 +214,7 @@ const reducer = (state: AppState, action: Action): AppState => {
             quantityChange: -quantity,
             newQuantityInWarehouse: finalFromQuantity,
             details: `Transferencia a ${toWarehouse.name}. ${details}`,
-            user: state.currentUser.name,
+            user: currentUser.name,
         });
 
         // Entrada en el almacén de destino
@@ -225,7 +238,7 @@ const reducer = (state: AppState, action: Action): AppState => {
             quantityChange: quantity,
             newQuantityInWarehouse: finalToQuantity,
             details: `Transferencia desde ${fromWarehouse.name}. ${details}`,
-            user: state.currentUser.name,
+            user: currentUser.name,
         });
 
         return {
@@ -264,7 +277,7 @@ const reducer = (state: AppState, action: Action): AppState => {
     case 'DELETE_USER': {
         const { userId } = action.payload;
         // Prevenir la eliminación del usuario actual
-        if (userId === state.currentUser.id) return state;
+        if (userId === currentUser?.id) return state;
         const users = state.users.filter(u => u.id !== userId);
         const userWarehouseAccess = state.userWarehouseAccess.filter(access => access.userId !== userId);
         return {
