@@ -1319,6 +1319,7 @@ const UsersView = () => {
 // Estructura Principal de la App
 const AppContent = () => {
     const [view, setView] = useState<View>('dashboard');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { currentUser } = useInventoryState();
     const dispatch = useInventoryDispatch();
 
@@ -1330,6 +1331,11 @@ const AppContent = () => {
         { id: 'log', name: 'Registro', icon: ICONS.log },
         { id: 'settings', name: 'Configuración', icon: ICONS.settings },
     ];
+
+    const handleNavItemClick = (viewId: View) => {
+        setView(viewId);
+        setIsSidebarOpen(false); // Cierra el menú en móvil al navegar
+    };
 
     const visibleNavItems = navItems.filter(item => {
         if (currentUser?.role === 'ADMINISTRADOR') return true;
@@ -1352,7 +1358,13 @@ const AppContent = () => {
 
     return (
         <div className="flex h-screen bg-gray-900 text-gray-300">
-            <aside className="w-64 flex-shrink-0 bg-gray-800 p-4">
+             {isSidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-60 z-30 md:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                ></div>
+            )}
+            <aside className={`w-64 flex-shrink-0 bg-gray-800 p-4 transform transition-transform duration-300 ease-in-out z-40 fixed h-full md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="flex items-center mb-10 h-16 px-2">
                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-blue-500 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.03 1.125 0 1.131.094 1.976 1.057 1.976 2.192V7.5M12 14.25a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H3.375a2.25 2.25 0 0 0-2.25 2.25v10.5a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                    <span className="text-xl font-semibold text-white">Inventario Simple</span>
@@ -1361,7 +1373,7 @@ const AppContent = () => {
                     <ul className="space-y-2">
                         {visibleNavItems.map(item => (
                             <li key={item.id}>
-                                <a href="#" onClick={(e) => { e.preventDefault(); setView(item.id); }} 
+                                <a href="#" onClick={(e) => { e.preventDefault(); handleNavItemClick(item.id); }} 
                                    className={`flex items-center gap-3 p-3 rounded-lg font-medium transition-colors ${view === item.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
                                     {item.icon}
                                     <span>{item.name}</span>
@@ -1372,18 +1384,27 @@ const AppContent = () => {
                 </nav>
             </aside>
             <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-end items-center gap-4">
-                    <div className="text-right">
-                        <p className="font-semibold text-white">{currentUser.name}</p>
-                        <p className="text-xs text-gray-400">{currentUser.role}</p>
-                    </div>
-                    <button 
-                        onClick={() => dispatch({ type: 'LOGOUT' })} 
-                        title="Cerrar Sesión"
-                        className="p-2 text-gray-400 hover:text-white hover:bg-red-600/50 rounded-md transition-colors"
+                 <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
+                    <button
+                        className="p-2 text-gray-400 hover:text-white md:hidden"
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        aria-label="Abrir menú"
                     >
-                        {ICONS.logout}
+                        {ICONS.hamburger}
                     </button>
+                    <div className="flex items-center gap-4 ml-auto">
+                        <div className="text-right">
+                            <p className="font-semibold text-white">{currentUser.name}</p>
+                            <p className="text-xs text-gray-400">{currentUser.role}</p>
+                        </div>
+                        <button 
+                            onClick={() => dispatch({ type: 'LOGOUT' })} 
+                            title="Cerrar Sesión"
+                            className="p-2 text-gray-400 hover:text-white hover:bg-red-600/50 rounded-md transition-colors"
+                        >
+                            {ICONS.logout}
+                        </button>
+                    </div>
                 </header>
                 <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-900 p-8">
                     {renderView()}
