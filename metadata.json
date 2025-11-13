@@ -1,0 +1,5 @@
+{
+  "name": "Sistema de Inventario Simple",
+  "description": "Una aplicación de gestión de inventario tradicional y fiable para rastrear productos, stock y movimientos.",
+  "requestFramePermissions": []
+}
