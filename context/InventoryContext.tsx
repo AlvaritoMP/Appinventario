@@ -1,6 +1,6 @@
 import React, { createContext, useReducer, useContext, Dispatch } from 'react';
-import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings } from '../types';
-import { mockProducts, mockLogs, mockWarehouses, mockInventory, mockUsers, mockUserWarehouseAccess } from '../services/mockData';
+import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings, CompanyInfo } from '../types';
+import { mockProducts, mockLogs, mockWarehouses, mockInventory, mockUsers, mockUserWarehouseAccess, mockCompanyInfo } from '../services/mockData';
 
 // Generador simple de UUID para evitar dependencias externas.
 const generateUUID = () => {
@@ -30,6 +30,7 @@ interface AppState {
   userWarehouseAccess: UserWarehouseAccess[];
   currentUser: User | null; // Simula el usuario logueado
   settings: AppSettings;
+  companyInfo: CompanyInfo;
 }
 
 const initialState: AppState = {
@@ -41,6 +42,7 @@ const initialState: AppState = {
   userWarehouseAccess: mockUserWarehouseAccess,
   currentUser: null, // Nadie está logueado al inicio
   settings: initialAppSettings,
+  companyInfo: mockCompanyInfo,
 };
 
 type Action =
@@ -53,6 +55,7 @@ type Action =
   | { type: 'DELETE_PRODUCT'; payload: { productId: string } }
   | { type: 'ADJUST_STOCK'; payload: { productId: string; warehouseId: string; quantityChange: number; type: LogType; details: string } }
   | { type: 'TRANSFER_STOCK'; payload: { productId: string; fromWarehouseId: string; toWarehouseId: string; quantity: number; details: string } }
+  | { type: 'BULK_TRANSFER_STOCK'; payload: { items: { productId: string; quantity: number }[]; fromWarehouseId: string; toWarehouseId: string; details: string } }
   | { type: 'ADD_WAREHOUSE'; payload: { warehouse: Omit<Warehouse, 'id'> } }
   | { type: 'ADD_USER'; payload: { user: Omit<User, 'id'>; warehouseIds: string[] } }
   | { type: 'UPDATE_USER'; payload: { user: User; warehouseIds: string[] } }
@@ -262,6 +265,84 @@ const reducer = (state: AppState, action: Action): AppState => {
             inventory: updatedInventory,
             logs: [...logsToAdd, ...state.logs],
         };
+    }
+    case 'BULK_TRANSFER_STOCK': {
+      if (!currentUser) return state;
+      const { items, fromWarehouseId, toWarehouseId, details } = action.payload;
+
+      const fromWarehouse = state.warehouses.find(w => w.id === fromWarehouseId);
+      const toWarehouse = state.warehouses.find(w => w.id === toWarehouseId);
+
+      if (!fromWarehouse || !toWarehouse || items.length === 0) return state;
+
+      let updatedInventory = [...state.inventory];
+      const newLogs: LogEntry[] = [];
+      const transactionId = generateUUID();
+      const timestamp = new Date().toISOString();
+
+      for (const item of items) {
+          const { productId, quantity } = item;
+          const product = state.products.find(p => p.id === productId);
+          if (!product || quantity <= 0) continue;
+
+          let finalFromQuantity = 0;
+          let finalToQuantity = 0;
+
+          // Salida del almacén de origen
+          const fromIdx = updatedInventory.findIndex(i => i.productId === productId && i.warehouseId === fromWarehouseId);
+          if (fromIdx === -1 || updatedInventory[fromIdx].quantity < quantity) {
+              // No hay suficiente stock para este item, se omite. En una app real se podría cancelar toda la transacción.
+              continue;
+          }
+          const fromItem = updatedInventory[fromIdx];
+          finalFromQuantity = fromItem.quantity - quantity;
+          updatedInventory[fromIdx] = { ...fromItem, quantity: finalFromQuantity };
+
+          newLogs.push({
+              id: generateUUID(),
+              timestamp,
+              productName: product.name,
+              sku: product.sku,
+              warehouseName: fromWarehouse.name,
+              type: 'SALIDA',
+              quantityChange: -quantity,
+              newQuantityInWarehouse: finalFromQuantity,
+              details: `Transferencia múltiple a ${toWarehouse.name}. ${details}`,
+              user: currentUser.name,
+              transactionId,
+          });
+
+          // Entrada en el almacén de destino
+          const toIdx = updatedInventory.findIndex(i => i.productId === productId && i.warehouseId === toWarehouseId);
+          if (toIdx > -1) {
+              const toItem = updatedInventory[toIdx];
+              finalToQuantity = toItem.quantity + quantity;
+              updatedInventory[toIdx] = { ...toItem, quantity: finalToQuantity };
+          } else {
+              finalToQuantity = quantity;
+              updatedInventory.push({ productId, warehouseId: toWarehouseId, quantity });
+          }
+
+          newLogs.push({
+              id: generateUUID(),
+              timestamp,
+              productName: product.name,
+              sku: product.sku,
+              warehouseName: toWarehouse.name,
+              type: 'ENTRADA',
+              quantityChange: quantity,
+              newQuantityInWarehouse: finalToQuantity,
+              details: `Transferencia múltiple desde ${fromWarehouse.name}. ${details}`,
+              user: currentUser.name,
+              transactionId,
+          });
+      }
+
+      return {
+          ...state,
+          inventory: updatedInventory,
+          logs: [...newLogs, ...state.logs],
+      };
     }
     case 'ADD_USER': {
         const { user, warehouseIds } = action.payload;

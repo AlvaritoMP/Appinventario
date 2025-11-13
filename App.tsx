@@ -4,6 +4,8 @@ import { useInventoryState, useInventoryDispatch } from './context/InventoryCont
 import { ICONS } from './constants';
 import { SettingsView } from './components/SettingsView';
 import { MovementDocumentModal } from './components/MovementDocumentModal';
+import { BulkTransferModal } from './components/BulkTransferModal';
+
 
 declare global {
   interface Window { QRious: any; }
@@ -55,14 +57,12 @@ const exportToCsv = (filename: string, headers: string[], data: (string | number
 
 
 // UI Components Reutilizables
-// FIX: Made children prop optional to resolve TypeScript errors.
 const Card = ({ children, className = '' }: { children?: React.ReactNode, className?: string }) => (
   <div className={`bg-gray-800 border border-gray-700 rounded-lg shadow-md p-6 ${className}`}>
     {children}
   </div>
 );
 
-// FIX: Made children prop optional to resolve TypeScript errors.
 const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }: { isOpen: boolean, onClose: () => void, title: string, children?: React.ReactNode, maxWidth?: string }) => {
   if (!isOpen) return null;
   return (
@@ -78,8 +78,6 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }: { is
   );
 };
 
-// FIX: Made children prop optional to resolve TypeScript errors.
-// FIX: Added title prop to Button component to allow for tooltips.
 const Button = ({ children, onClick, className = 'bg-blue-600 hover:bg-blue-700', type = 'button', disabled = false, title }: { children?: React.ReactNode, onClick?: () => void, className?: string, type?: 'button' | 'submit' | 'reset', disabled?: boolean, title?: string }) => (
   <button type={type} onClick={onClick} disabled={disabled} title={title} className={`flex items-center justify-center gap-2 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>
     {children}
@@ -274,7 +272,6 @@ const ProductFormModal = ({ product, onClose, onSave }: { product?: Product, onC
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // FIX: Add explicit File[] type to fix type inference issue
         const files: File[] = Array.from(e.target.files || []);
         const remainingSlots = 4 - images.length;
         if (remainingSlots <= 0) return;
@@ -426,304 +423,29 @@ const ProductDetailModal = ({ product, onClose }: { product: Product, onClose: (
                             ))}
                         </ul>
                     ) : (
-                        <p className="text-gray-500 mt-2">Este producto no tiene stock en ningún almacén.</p>
+                        <p className="text-gray-400 mt-2">Este producto no tiene stock en ningún almacén.</p>
                     )}
                 </div>
-                 <div className="flex justify-end pt-4">
-                    <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cerrar</Button>
+                <div className="flex justify-end pt-4">
+                     <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cerrar</Button>
                 </div>
             </div>
         </Modal>
     );
 };
-
-const AdjustStockModal = ({ product, onClose }: { product: Product, onClose: () => void }) => {
-    const { inventory } = useInventoryState();
-    const permittedWarehouses = usePermittedWarehouses();
-    const dispatch = useInventoryDispatch();
-    const [warehouseId, setWarehouseId] = useState(permittedWarehouses[0]?.id || '');
-    const [change, setChange] = useState(0);
-    const [details, setDetails] = useState('');
-    const [type, setType] = useState<LogType>('AJUSTE');
-
-    const currentStock = useMemo(() => {
-        return inventory.find(i => i.productId === product.id && i.warehouseId === warehouseId)?.quantity || 0;
-    }, [inventory, product, warehouseId]);
-
-    const handleAdjust = () => {
-        if (change === 0 || !warehouseId) return;
-        dispatch({
-            type: 'ADJUST_STOCK',
-            payload: {
-                productId: product.id,
-                warehouseId,
-                quantityChange: type === 'SALIDA' ? -Math.abs(change) : Math.abs(change),
-                type: type,
-                details: details || 'Ajuste manual de stock.'
-            }
-        });
-        onClose();
-    };
-    
-    return (
-        <Modal isOpen={true} onClose={onClose} title={`Ajustar Stock de ${product.name}`}>
-            <div className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Almacén</label>
-                    <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
-                        {permittedWarehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                </div>
-                <p className="text-gray-400">Stock Actual en Almacén: <span className="font-bold text-white">{currentStock}</span></p>
-                <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Tipo de Movimiento</label>
-                    <select value={type} onChange={e => setType(e.target.value as LogType)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
-                        <option value="ENTRADA">Entrada</option>
-                        <option value="SALIDA">Salida</option>
-                        <option value="AJUSTE">Ajuste Manual</option>
-                    </select>
-                </div>
-                <Input label={`Cantidad a ${type === 'SALIDA' ? 'Quitar' : 'Añadir'}`} type="number" value={change} onChange={e => setChange(parseInt(e.target.value, 10))} />
-                <Input label="Detalles / Razón" value={details} onChange={e => setDetails(e.target.value)} placeholder="Ej: Pedido #123, Devolución, etc."/>
-                <div className="flex justify-end pt-4 gap-3">
-                    <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cancelar</Button>
-                    <Button onClick={handleAdjust}>Confirmar Ajuste</Button>
-                </div>
-            </div>
-        </Modal>
-    );
-};
-
-const TransferStockModal = ({ product, onClose }: { product: Product, onClose: () => void }) => {
-    const { inventory } = useInventoryState();
-    const permittedWarehouses = usePermittedWarehouses();
-    const dispatch = useInventoryDispatch();
-
-    const [fromWarehouseId, setFromWarehouseId] = useState('');
-    const [toWarehouseId, setToWarehouseId] = useState('');
-    const [quantity, setQuantity] = useState(0);
-    const [details, setDetails] = useState('');
-
-    const fromStock = useMemo(() => {
-        return inventory.find(i => i.productId === product.id && i.warehouseId === fromWarehouseId)?.quantity || 0;
-    }, [inventory, product.id, fromWarehouseId]);
-
-    const handleTransfer = () => {
-        if (quantity <= 0 || !fromWarehouseId || !toWarehouseId || fromWarehouseId === toWarehouseId) return;
-        dispatch({
-            type: 'TRANSFER_STOCK',
-            payload: {
-                productId: product.id,
-                fromWarehouseId,
-                toWarehouseId,
-                quantity,
-                details: details || 'Transferencia entre almacenes.'
-            }
-        });
-        onClose();
-    };
-
-    return (
-        <Modal isOpen={true} onClose={onClose} title={`Transferir ${product.name}`}>
-            <div className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Desde Almacén</label>
-                    <select value={fromWarehouseId} onChange={e => setFromWarehouseId(e.target.value)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
-                        <option value="">Seleccione origen...</option>
-                        {permittedWarehouses.map(w => <option key={w.id} value={w.id}>{w.name} (Stock: {inventory.find(i => i.productId === product.id && i.warehouseId === w.id)?.quantity || 0})</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Hacia Almacén</label>
-                    <select value={toWarehouseId} onChange={e => setToWarehouseId(e.target.value)} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
-                        <option value="">Seleccione destino...</option>
-                        {permittedWarehouses.filter(w => w.id !== fromWarehouseId).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                </div>
-                <Input label="Cantidad a Transferir" type="number" value={quantity} onChange={e => setQuantity(Math.max(0, Math.min(fromStock, parseInt(e.target.value, 10))))} max={fromStock} />
-                <Input label="Detalles / Razón" value={details} onChange={e => setDetails(e.target.value)} placeholder="Ej: Movimiento interno"/>
-                <div className="flex justify-end pt-4 gap-3">
-                    <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cancelar</Button>
-                    <Button onClick={handleTransfer} disabled={quantity <= 0 || !fromWarehouseId || !toWarehouseId || fromWarehouseId === toWarehouseId}>Confirmar Transferencia</Button>
-                </div>
-            </div>
-        </Modal>
-    );
-};
-
-const ImportProductsModal = ({ onClose }: { onClose: () => void }) => {
-    const dispatch = useInventoryDispatch();
-    const [parsedData, setParsedData] = useState<{ product: Omit<Product, 'id'>, isValid: boolean, error?: string }[]>([]);
-    const [fileName, setFileName] = useState('');
-    const [importSummary, setImportSummary] = useState<{ success: number, failed: number } | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleDownloadTemplate = () => {
-        const headers = ['name', 'sku', 'category', 'price', 'lowStockThreshold', 'description', 'images'];
-        const data = [
-            ['Taladro de Ejemplo', 'EJEMPLO-001', 'Herramientas', 99.99, 10, 'Descripción de ejemplo para el taladro.', 'https://via.placeholder.com/150, https://via.placeholder.com/150']
-        ];
-        exportToCsv('plantilla_productos.csv', headers, data as (string|number)[][]);
-    };
-
-    const parseCSV = (csvText: string) => {
-        try {
-            const lines = csvText.trim().split(/\r\n|\n/);
-            if (lines.length < 2) {
-                setParsedData([]);
-                return;
-            }
-            const headers = lines[0].split(',').map(h => h.trim());
-            const dataRows = lines.slice(1);
-            
-            const processedData = dataRows.map(rowStr => {
-                if (!rowStr.trim()) return null;
-                const values = rowStr.split(','); // Simplified parsing
-
-                const productData: any = {};
-                headers.forEach((header, index) => {
-                    productData[header] = values[index]?.trim() || '';
-                });
-
-                if (!productData.name || !productData.sku) {
-                    return { product: productData, isValid: false, error: 'Nombre y SKU son obligatorios.' };
-                }
-
-                return {
-                    product: {
-                        name: productData.name,
-                        sku: productData.sku,
-                        category: productData.category || '',
-                        price: parseFloat(productData.price) || 0,
-                        lowStockThreshold: parseInt(productData.lowStockThreshold, 10) || 0,
-                        description: productData.description || '',
-                        images: productData.images ? productData.images.split(',').map((s: string) => s.trim()) : [],
-                    },
-                    isValid: true,
-                };
-            }).filter(Boolean);
-
-            setParsedData(processedData as { product: Omit<Product, 'id'>, isValid: boolean, error?: string }[]);
-        } catch (error) {
-            console.error("Error al parsear CSV:", error);
-            setParsedData([]);
-        }
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setFileName(file.name);
-        setImportSummary(null);
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const text = event.target?.result as string;
-            parseCSV(text);
-        };
-        reader.readAsText(file);
-    };
-
-    const handleConfirmImport = () => {
-        const validProducts = parsedData.filter(d => d.isValid).map(d => d.product);
-        const failedCount = parsedData.length - validProducts.length;
-        if (validProducts.length > 0) {
-            dispatch({ type: 'BULK_ADD_PRODUCTS', payload: { products: validProducts } });
-        }
-        setImportSummary({ success: validProducts.length, failed: failedCount });
-        setParsedData([]);
-        setFileName('');
-    };
-    
-    const validCount = parsedData.filter(d => d.isValid).length;
-
-    return (
-        <Modal isOpen={true} onClose={onClose} title="Importar Productos desde CSV" maxWidth="max-w-4xl">
-            {importSummary ? (
-                 <div className="space-y-4 text-center">
-                    <h3 className="text-xl font-bold text-white">Importación Completa</h3>
-                    <p className="text-green-400">{importSummary.success} productos importados con éxito.</p>
-                    {importSummary.failed > 0 && <p className="text-red-400">{importSummary.failed} filas se omitieron por errores.</p>}
-                    <div className="flex justify-center pt-4">
-                        <Button onClick={onClose}>Cerrar</Button>
-                    </div>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-                        <h4 className="font-semibold text-white">Paso 1: Descargar Plantilla</h4>
-                        <p className="text-sm text-gray-400 mt-1 mb-3">Descarga la plantilla para asegurar que tus datos tengan el formato correcto.</p>
-                        <Button onClick={handleDownloadTemplate} className="bg-gray-600 hover:bg-gray-700">
-                            Descargar Plantilla CSV
-                        </Button>
-                    </div>
-                    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-                        <h4 className="font-semibold text-white">Paso 2: Subir Archivo</h4>
-                        <p className="text-sm text-gray-400 mt-1 mb-3">Selecciona el archivo CSV que completaste.</p>
-                        <input type="file" accept=".csv" onChange={handleFileChange} ref={fileInputRef} className="hidden" />
-                        <div className="flex items-center gap-4">
-                            <Button type="button" onClick={() => fileInputRef.current?.click()} className="bg-gray-600 hover:bg-gray-700">
-                                {ICONS.upload}
-                                Seleccionar Archivo
-                            </Button>
-                            {fileName && <span className="text-gray-400">{fileName}</span>}
-                        </div>
-                    </div>
-                    {parsedData.length > 0 && (
-                        <div>
-                            <h4 className="font-semibold text-white mb-2">Paso 3: Previsualizar y Confirmar</h4>
-                            <div className="max-h-60 overflow-y-auto border border-gray-700 rounded-lg">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-gray-800 sticky top-0">
-                                        <tr>
-                                            <th className="px-4 py-2">Estado</th>
-                                            <th className="px-4 py-2">Nombre</th>
-                                            <th className="px-4 py-2">SKU</th>
-                                            <th className="px-4 py-2">Error</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-gray-900">
-                                        {parsedData.map((item, index) => (
-                                            <tr key={index} className={item.isValid ? '' : 'bg-red-900/50'}>
-                                                <td className="px-4 py-2">
-                                                    {item.isValid 
-                                                        ? <span className="text-green-400 font-semibold">Válido</span> 
-                                                        : <span className="text-red-400 font-semibold">Inválido</span>
-                                                    }
-                                                </td>
-                                                <td className="px-4 py-2">{item.product.name}</td>
-                                                <td className="px-4 py-2">{item.product.sku}</td>
-                                                <td className="px-4 py-2 text-red-400">{item.error}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-                    <div className="flex justify-end pt-4 gap-3">
-                        <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cancelar</Button>
-                        <Button onClick={handleConfirmImport} disabled={validCount === 0}>
-                            Confirmar Importación ({validCount} productos)
-                        </Button>
-                    </div>
-                </div>
-            )}
-        </Modal>
-    );
-};
-
 
 const ProductsView = () => {
-    const { products, inventory, currentUser, settings } = useInventoryState();
+    const { products, inventory, warehouses, settings } = useInventoryState();
     const dispatch = useInventoryDispatch();
-    const [filter, setFilter] = useState('');
-    const [modal, setModal] = useState<'add' | 'edit' | 'adjust' | 'detail' | 'transfer' | 'import' | null>(null);
+    const permittedWarehouses = usePermittedWarehouses();
+
+    const [modal, setModal] = useState<'add' | 'edit' | 'detail' | 'adjust' | 'transfer' | 'bulk-transfer' | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-
-    const canManageProducts = currentUser?.role === 'ADMINISTRADOR' || currentUser?.role === 'GERENTE';
-    const canDeleteProducts = currentUser?.role === 'ADMINISTRADOR';
-
-
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filters, setFilters] = useState({ category: '', stockStatus: '' });
+    const [showFilters, setShowFilters] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
     const productTotals = useMemo(() => {
         return products.map(p => {
             const totalQuantity = inventory
@@ -733,510 +455,627 @@ const ProductsView = () => {
         });
     }, [products, inventory]);
 
-    const handleSave = (productData: Omit<Product, 'id'>) => {
-        if (modal === 'add') {
-             dispatch({ type: 'ADD_PRODUCT', payload: { product: productData } });
-        } else if (selectedProduct) {
-            dispatch({ type: 'UPDATE_PRODUCT', payload: { product: { ...productData, id: selectedProduct.id } } });
+    const filteredProducts = useMemo(() => {
+        return productTotals.filter(p => {
+            const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesCategory = filters.category ? p.category === filters.category : true;
+            
+            const matchesStock = () => {
+                if (!filters.stockStatus) return true;
+                if (filters.stockStatus === 'inStock') return p.totalQuantity > p.lowStockThreshold;
+                if (filters.stockStatus === 'lowStock') return p.totalQuantity > 0 && p.totalQuantity <= p.lowStockThreshold;
+                if (filters.stockStatus === 'outOfStock') return p.totalQuantity === 0;
+                return true;
+            };
+
+            return matchesSearch && matchesCategory && matchesStock();
+        });
+    }, [productTotals, searchTerm, filters]);
+
+    const categories = useMemo(() => [...new Set(products.map(p => p.category))], [products]);
+
+    const handleSaveProduct = (productData: Omit<Product, 'id'>) => {
+        if (selectedProduct) {
+            dispatch({ type: 'UPDATE_PRODUCT', payload: { product: { ...selectedProduct, ...productData } } });
+        } else {
+            dispatch({ type: 'ADD_PRODUCT', payload: { product: productData } });
         }
         setModal(null);
         setSelectedProduct(null);
     };
 
-    const filteredProducts = useMemo(() =>
-        productTotals.filter(p =>
-            p.name.toLowerCase().includes(filter.toLowerCase()) ||
-            p.sku.toLowerCase().includes(filter.toLowerCase()) ||
-            p.category.toLowerCase().includes(filter.toLowerCase())
-        ).sort((a,b) => a.name.localeCompare(b.name)), [productTotals, filter]
-    );
+    const handleAdjustStock = (productId: string, warehouseId: string, quantityChange: number, type: LogType, details: string) => {
+        dispatch({ type: 'ADJUST_STOCK', payload: { productId, warehouseId, quantityChange, type, details } });
+        setModal(null);
+    };
 
-    const getStockStatusClass = useCallback((p: { totalQuantity: number, lowStockThreshold: number }) => {
-        if (p.totalQuantity === 0) return settings.colors.outOfStock;
-        if (p.totalQuantity <= p.lowStockThreshold) return settings.colors.lowStock;
-        return settings.colors.inStock;
-    }, [settings]);
+    const handleTransferStock = (productId: string, fromWarehouseId: string, toWarehouseId: string, quantity: number, details: string) => {
+        dispatch({ type: 'TRANSFER_STOCK', payload: { productId, fromWarehouseId, toWarehouseId, quantity, details } });
+        setModal(null);
+    };
 
-    const handleExport = () => {
-        const headers = ["Nombre", "SKU", "Categoría", "Stock Total", "Precio", "Umbral Stock Bajo", "Descripción"];
+    const getStockStatus = (product: Product & { totalQuantity: number }) => {
+        if (product.totalQuantity === 0) return { text: 'Agotado', className: settings.colors.outOfStock };
+        if (product.totalQuantity <= product.lowStockThreshold) return { text: 'Stock Bajo', className: settings.colors.lowStock };
+        return { text: 'En Stock', className: settings.colors.inStock };
+    };
+
+    const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target?.result as string;
+            const lines = text.split('\n').slice(1); // Omitir encabezado
+            const newProducts: Omit<Product, 'id' | 'images'>[] = [];
+
+            lines.forEach(line => {
+                if (line.trim() === '') return;
+                const [name, sku, category, priceStr, lowStockThresholdStr, description] = line.split(',');
+                const price = parseFloat(priceStr);
+                const lowStockThreshold = parseInt(lowStockThresholdStr, 10);
+                if (name && sku && !isNaN(price) && !isNaN(lowStockThreshold)) {
+                    newProducts.push({
+                        name: name.trim(),
+                        sku: sku.trim(),
+                        category: category.trim(),
+                        price,
+                        lowStockThreshold,
+                        description: description ? description.trim() : '',
+                    });
+                }
+            });
+
+            if (newProducts.length > 0) {
+                 dispatch({ type: 'BULK_ADD_PRODUCTS', payload: { products: newProducts.map(p => ({...p, images:[]})) } });
+                 alert(`${newProducts.length} productos importados con éxito.`);
+            } else {
+                 alert('No se pudieron importar productos. Revise el formato del CSV.');
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = ''; // Reset input
+    };
+
+    const handleExportCSV = () => {
+        const headers = ["ID", "SKU", "Nombre", "Categoría", "Precio", "Umbral Stock Bajo", "Stock Total", "Descripción"];
         const data = filteredProducts.map(p => [
-            p.name,
+            p.id,
             p.sku,
+            p.name,
             p.category,
-            p.totalQuantity,
             p.price,
             p.lowStockThreshold,
+            p.totalQuantity,
             p.description
         ]);
         exportToCsv('productos.csv', headers, data);
     };
 
     return (
-        <Card>
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                <h2 className="text-2xl font-bold text-white">Gestión de Productos</h2>
-                <div className="flex items-center gap-2 w-full md:w-auto flex-wrap justify-end">
-                    <Input type="text" placeholder="Buscar producto..." value={filter} onChange={e => setFilter(e.target.value)} label="" className="w-full sm:w-auto" />
-                    {canManageProducts && <Button onClick={() => setModal('import')} className="bg-indigo-600 hover:bg-indigo-700">{ICONS.import} Importar</Button>}
-                    <Button onClick={handleExport} className="bg-green-600 hover:bg-green-700">{ICONS.export} Exportar</Button>
-                    {canManageProducts && <Button onClick={() => { setSelectedProduct(null); setModal('add'); }}>{ICONS.plus} Añadir Producto</Button>}
+        <div className="space-y-6">
+             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <h1 className="text-3xl font-bold text-white">Gestión de Productos</h1>
+                <div className="flex flex-wrap gap-2 justify-center md:justify-end">
+                    <Button onClick={() => setModal('add')} className="bg-blue-600 hover:bg-blue-700">
+                        {ICONS.plus}
+                        Añadir Producto
+                    </Button>
+                    <Button onClick={() => setModal('bulk-transfer')} className="bg-fuchsia-600 hover:bg-fuchsia-700">
+                        {ICONS.transfer}
+                        Transferencia Múltiple
+                    </Button>
                 </div>
             </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-gray-300">
-                    <thead className="border-b border-gray-700 text-xs text-gray-400 uppercase">
-                        <tr>
-                            <th className="px-6 py-3">Nombre</th>
-                            <th className="px-6 py-3">SKU</th>
-                            <th className="px-6 py-3">Categoría</th>
-                            <th className="px-6 py-3 text-right">Stock Total</th>
-                            <th className="px-6 py-3 text-right">Precio</th>
-                            <th className="px-6 py-3 text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredProducts.map(p => (
-                            <tr key={p.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                                <td className="px-6 py-4 font-semibold">
-                                    <a href="#" onClick={(e) => { e.preventDefault(); setSelectedProduct(p); setModal('detail'); }} className="text-white hover:text-blue-400 transition-colors">
-                                        {p.name}
-                                    </a>
-                                </td>
-                                <td className="px-6 py-4 font-mono">{p.sku}</td>
-                                <td className="px-6 py-4">{p.category}</td>
-                                <td className="px-6 py-4 text-right">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${getStockStatusClass(p)}`}>{p.totalQuantity}</span>
-                                </td>
-                                <td className="px-6 py-4 text-right">${p.price.toFixed(2)}</td>
-                                <td className="px-6 py-4">
-                                    <div className="flex justify-center space-x-2">
-                                        {canManageProducts && <button title="Transferir Stock" onClick={() => { setSelectedProduct(p); setModal('transfer'); }} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors">{ICONS.transfer}</button>}
-                                        {canManageProducts && <button title="Ajustar Stock" onClick={() => { setSelectedProduct(p); setModal('adjust'); }} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors">{ICONS.adjust}</button>}
-                                        {canManageProducts && <button title="Editar" onClick={() => { setSelectedProduct(p); setModal('edit'); }} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors">{ICONS.edit}</button>}
-                                        {canDeleteProducts && <button title="Eliminar" onClick={() => dispatch({type: 'DELETE_PRODUCT', payload: {productId: p.id}})} className="p-2 text-red-500 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors">{ICONS.trash}</button>}
-                                    </div>
-                                </td>
+
+            <Card>
+                <div className="flex flex-col md:flex-row gap-4 mb-4">
+                    <input
+                        type="text"
+                        placeholder="Buscar por nombre o SKU..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full md:flex-1 bg-gray-700 border border-gray-600 text-white rounded-lg px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                     <div className="flex gap-2">
+                        <Button onClick={() => setShowFilters(!showFilters)} className="bg-gray-600 hover:bg-gray-700">
+                            {ICONS.filter}
+                            Filtros
+                        </Button>
+                        <input type="file" accept=".csv" ref={fileInputRef} onChange={handleImportCSV} className="hidden" />
+                        <Button onClick={() => fileInputRef.current?.click()} className="bg-gray-600 hover:bg-gray-700">
+                            {ICONS.import}
+                            Importar
+                        </Button>
+                        <Button onClick={handleExportCSV} className="bg-gray-600 hover:bg-gray-700">
+                            {ICONS.export}
+                            Exportar
+                        </Button>
+                    </div>
+                </div>
+
+                {showFilters && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-900/50 rounded-lg">
+                        <select
+                            value={filters.category}
+                            onChange={e => setFilters(f => ({ ...f, category: e.target.value }))}
+                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2"
+                        >
+                            <option value="">Todas las Categorías</option>
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <select
+                            value={filters.stockStatus}
+                            onChange={e => setFilters(f => ({ ...f, stockStatus: e.target.value }))}
+                             className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2"
+                        >
+                            <option value="">Todo el Stock</option>
+                            <option value="inStock">En Stock</option>
+                            <option value="lowStock">Stock Bajo</option>
+                            <option value="outOfStock">Agotado</option>
+                        </select>
+                    </div>
+                )}
+                
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="border-b border-gray-700 text-sm text-gray-400">
+                            <tr>
+                                <th className="p-4">Producto</th>
+                                <th className="p-4">Categoría</th>
+                                <th className="p-4 text-right">Precio</th>
+                                <th className="p-4 text-center">Stock Total</th>
+                                <th className="p-4 text-center">Estado</th>
+                                <th className="p-4 text-center">Acciones</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {canManageProducts && (modal === 'add' || modal === 'edit') && <ProductFormModal product={selectedProduct || undefined} onClose={() => setModal(null)} onSave={handleSave} />}
-            {canManageProducts && modal === 'adjust' && selectedProduct && <AdjustStockModal product={selectedProduct} onClose={() => setModal(null)} />}
-            {modal === 'detail' && selectedProduct && <ProductDetailModal product={selectedProduct} onClose={() => setModal(null)} />}
-            {canManageProducts && modal === 'transfer' && selectedProduct && <TransferStockModal product={selectedProduct} onClose={() => setModal(null)} />}
-            {canManageProducts && modal === 'import' && <ImportProductsModal onClose={() => setModal(null)} />}
-        </Card>
+                        </thead>
+                        <tbody>
+                            {filteredProducts.map(p => {
+                                const status = getStockStatus(p);
+                                return (
+                                    <tr key={p.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-3">
+                                                <img src={p.images?.[0] || `https://via.placeholder.com/40x40.png/2d3748/ffffff?text=${p.name.charAt(0)}`} alt={p.name} className="w-10 h-10 rounded-md object-cover bg-gray-700" />
+                                                <div>
+                                                    <p className="font-semibold text-white cursor-pointer" onClick={() => { setSelectedProduct(p); setModal('detail'); }}>{p.name}</p>
+                                                    <p className="text-xs text-gray-500 font-mono">{p.sku}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-gray-400">{p.category}</td>
+                                        <td className="p-4 text-right text-white font-semibold">${p.price.toFixed(2)}</td>
+                                        <td className="p-4 text-center text-white font-bold text-lg">{p.totalQuantity}</td>
+                                        <td className="p-4 text-center">
+                                            <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${status.className}`}>
+                                                {status.text}
+                                            </span>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex justify-center items-center gap-2">
+                                                <Button onClick={() => { setSelectedProduct(p); setModal('edit'); }} title="Editar Producto" className="bg-gray-700 hover:bg-gray-600 p-2"><span className="sr-only">Editar</span>{ICONS.edit}</Button>
+                                                <Button onClick={() => { setSelectedProduct(p); setModal('adjust'); }} title="Ajustar Stock" className="bg-gray-700 hover:bg-gray-600 p-2"><span className="sr-only">Ajustar</span>{ICONS.adjust}</Button>
+                                                <Button onClick={() => { setSelectedProduct(p); setModal('transfer'); }} title="Transferir Stock" className="bg-gray-700 hover:bg-gray-600 p-2"><span className="sr-only">Transferir</span>{ICONS.transfer}</Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                 {filteredProducts.length === 0 && (
+                    <div className="text-center py-10">
+                        <p className="text-gray-400">No se encontraron productos que coincidan con la búsqueda o los filtros.</p>
+                    </div>
+                )}
+            </Card>
+
+            {modal === 'add' && <ProductFormModal onClose={() => { setModal(null); setSelectedProduct(null); }} onSave={handleSaveProduct} />}
+            {modal === 'edit' && selectedProduct && <ProductFormModal product={selectedProduct} onClose={() => { setModal(null); setSelectedProduct(null); }} onSave={handleSaveProduct} />}
+            {modal === 'detail' && selectedProduct && <ProductDetailModal product={selectedProduct} onClose={() => { setModal(null); setSelectedProduct(null); }} />}
+            {modal === 'adjust' && selectedProduct && <StockAdjustModal product={selectedProduct} warehouses={permittedWarehouses} onAdjust={handleAdjustStock} onClose={() => { setModal(null); setSelectedProduct(null); }} />}
+            {modal === 'transfer' && selectedProduct && <StockTransferModal product={selectedProduct} warehouses={permittedWarehouses} onTransfer={handleTransferStock} onClose={() => { setModal(null); setSelectedProduct(null); }} />}
+            {modal === 'bulk-transfer' && <BulkTransferModal onClose={() => setModal(null)} />}
+        </div>
     );
 };
 
-const WarehouseFormModal = ({ onClose, onSave }: { onClose: () => void, onSave: (w: Omit<Warehouse, 'id'>) => void }) => {
-    const [name, setName] = useState('');
-    const [location, setLocation] = useState('');
+const StockAdjustModal = ({ product, warehouses, onAdjust, onClose }: { product: Product, warehouses: Warehouse[], onAdjust: (productId: string, warehouseId: string, quantityChange: number, type: LogType, details: string) => void, onClose: () => void }) => {
+    const { inventory } = useInventoryState();
+    const [warehouseId, setWarehouseId] = useState('');
+    const [quantityChange, setQuantityChange] = useState(0);
+    const [type, setType] = useState<LogType>('AJUSTE');
+    const [details, setDetails] = useState('');
+
+    const currentStock = useMemo(() => {
+        if (!warehouseId) return 0;
+        return inventory.find(i => i.productId === product.id && i.warehouseId === warehouseId)?.quantity || 0;
+    }, [inventory, product.id, warehouseId]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ name, location });
+        if (!warehouseId || quantityChange === 0) return;
+        onAdjust(product.id, warehouseId, quantityChange, type, details);
     };
 
     return (
-        <Modal isOpen={true} onClose={onClose} title="Añadir Almacén">
+        <Modal isOpen={true} onClose={onClose} title={`Ajustar Stock de: ${product.name}`}>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <Input label="Nombre del Almacén" value={name} onChange={e => setName(e.target.value)} required />
-                <Input label="Ubicación" value={location} onChange={e => setLocation(e.target.value)} required />
+                <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Almacén</label>
+                    <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
+                        <option value="">Seleccione un almacén...</option>
+                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                    {warehouseId && <p className="text-xs text-gray-500 mt-1">Stock actual en este almacén: <strong>{currentStock}</strong></p>}
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Tipo de Ajuste</label>
+                     <select value={type} onChange={e => setType(e.target.value as LogType)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
+                        <option value="AJUSTE">Ajuste Manual</option>
+                        <option value="ENTRADA">Entrada (Compra/Devolución)</option>
+                        <option value="SALIDA">Salida (Venta/Pérdida)</option>
+                    </select>
+                </div>
+                <Input label="Cantidad a Modificar (+/-)" type="number" value={quantityChange} onChange={e => setQuantityChange(parseInt(e.target.value, 10) || 0)} required />
+                <Textarea label="Razón del Ajuste / Detalles" value={details} onChange={e => setDetails(e.target.value)} rows={2} required />
+                 {warehouseId && (
+                    <div className="p-3 bg-gray-800 rounded-lg text-center">
+                        <p className="text-gray-400 text-sm">El nuevo stock será:</p>
+                        <p className="text-2xl font-bold text-white">{Math.max(0, currentStock + quantityChange)}</p>
+                    </div>
+                )}
                 <div className="flex justify-end pt-4 gap-3">
                     <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cancelar</Button>
-                    <Button type="submit">Añadir Almacén</Button>
+                    <Button type="submit">Confirmar Ajuste</Button>
                 </div>
             </form>
         </Modal>
     );
 };
 
-const WarehousesView = ({ onWarehouseSelect }: { onWarehouseSelect: (id: string) => void }) => {
-    const { inventory, products, currentUser } = useInventoryState();
-    const permittedWarehouses = usePermittedWarehouses();
-    const dispatch = useInventoryDispatch();
-    const [isModalOpen, setIsModalOpen] = useState(false);
+const StockTransferModal = ({ product, warehouses, onTransfer, onClose }: { product: Product, warehouses: Warehouse[], onTransfer: (productId: string, from: string, to: string, qty: number, details: string) => void, onClose: () => void }) => {
+    const { inventory } = useInventoryState();
+    const [fromWarehouseId, setFromWarehouseId] = useState('');
+    const [toWarehouseId, setToWarehouseId] = useState('');
+    const [quantity, setQuantity] = useState(1);
+    const [details, setDetails] = useState('');
 
-    const handleSave = (warehouse: Omit<Warehouse, 'id'>) => {
-        dispatch({ type: 'ADD_WAREHOUSE', payload: { warehouse } });
-        setIsModalOpen(false);
-    };
+    const maxQuantity = useMemo(() => {
+        if (!fromWarehouseId) return 0;
+        return inventory.find(i => i.productId === product.id && i.warehouseId === fromWarehouseId)?.quantity || 0;
+    }, [inventory, product.id, fromWarehouseId]);
 
-    const getWarehouseStock = (warehouseId: string) => {
-        return inventory
-            .filter(item => item.warehouseId === warehouseId)
-            .reduce((sum, item) => sum + item.quantity, 0);
-    };
-
-    const handleExport = () => {
-        const headers = ["Almacén", "Ubicación", "SKU", "Producto", "Categoría", "Precio", "Cantidad"];
-        const data = inventory.map(item => {
-            const warehouse = permittedWarehouses.find(w => w.id === item.warehouseId);
-            const product = products.find(p => p.id === item.productId);
-            if (!warehouse || !product) return null;
-            return [
-                warehouse.name,
-                warehouse.location,
-                product.sku,
-                product.name,
-                product.category,
-                product.price,
-                item.quantity
-            ];
-        }).filter(Boolean) as (string|number)[][];
-
-        exportToCsv('inventario_almacenes.csv', headers, data);
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!fromWarehouseId || !toWarehouseId || quantity <= 0 || fromWarehouseId === toWarehouseId) return;
+        onTransfer(product.id, fromWarehouseId, toWarehouseId, quantity, details);
     };
 
     return (
-        <Card>
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-white">Gestión de Almacenes</h2>
-                <div className="flex items-center gap-4">
-                    <Button onClick={handleExport} className="bg-green-600 hover:bg-green-700">{ICONS.export} Exportar a CSV</Button>
-                    {currentUser?.role === 'ADMINISTRADOR' && <Button onClick={() => setIsModalOpen(true)}>{ICONS.plus} Añadir Almacén</Button>}
-                </div>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-gray-300">
-                    <thead className="border-b border-gray-700 text-xs text-gray-400 uppercase">
-                        <tr>
-                            <th className="px-6 py-3">Nombre</th>
-                            <th className="px-6 py-3">Ubicación</th>
-                            <th className="px-6 py-3 text-right">Unidades Totales</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {permittedWarehouses.map(w => (
-                            <tr key={w.id} className="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer" onClick={() => onWarehouseSelect(w.id)}>
-                                <td className="px-6 py-4 font-semibold text-white">{w.name}</td>
-                                <td className="px-6 py-4">{w.location}</td>
-                                <td className="px-6 py-4 text-right font-bold">{getWarehouseStock(w.id).toLocaleString()}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {isModalOpen && <WarehouseFormModal onClose={() => setIsModalOpen(false)} onSave={handleSave} />}
-        </Card>
-    );
-};
-
-const WarehouseDetailView = ({ warehouseId, onBack }: { warehouseId: string; onBack: () => void }) => {
-    const { warehouses, products, inventory } = useInventoryState();
-
-    const warehouse = warehouses.find(w => w.id === warehouseId);
-
-    const warehouseInventory = useMemo(() => {
-        return inventory
-            .filter(item => item.warehouseId === warehouseId && item.quantity > 0)
-            .map(item => {
-                const product = products.find(p => p.id === item.productId);
-                return { ...item, product };
-            })
-            .filter(item => item.product); // Asegurarse de que el producto exista
-    }, [inventory, products, warehouseId]);
-
-    if (!warehouse) {
-        return (
-            <Card>
-                <p>Almacén no encontrado.</p>
-                <Button onClick={onBack} className="mt-4">Volver</Button>
-            </Card>
-        );
-    }
-
-    return (
-        <Card>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <Modal isOpen={true} onClose={onClose} title={`Transferir: ${product.name}`}>
+            <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Detalle de Almacén: {warehouse.name}</h2>
-                    <p className="text-gray-400">{warehouse.location}</p>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Desde Almacén (Origen)</label>
+                    <select value={fromWarehouseId} onChange={e => setFromWarehouseId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
+                        <option value="">Seleccione origen...</option>
+                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                     {fromWarehouseId && <p className="text-xs text-gray-500 mt-1">Stock disponible para transferir: <strong>{maxQuantity}</strong></p>}
                 </div>
-                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700">
-                    Volver a Almacenes
-                </Button>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-gray-300">
-                    <thead className="border-b border-gray-700 text-xs text-gray-400 uppercase">
-                        <tr>
-                            <th className="px-6 py-3">Producto</th>
-                            <th className="px-6 py-3">SKU</th>
-                            <th className="px-6 py-3 text-right">Cantidad en este Almacén</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {warehouseInventory.length > 0 ? warehouseInventory.map(item => (
-                            <tr key={item.productId} className="border-b border-gray-800 hover:bg-gray-800/50">
-                                <td className="px-6 py-4 font-semibold text-white">{item.product!.name}</td>
-                                <td className="px-6 py-4 font-mono">{item.product!.sku}</td>
-                                <td className="px-6 py-4 text-right font-bold">{item.quantity.toLocaleString()}</td>
-                            </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan={3} className="text-center py-8 text-gray-500">
-                                    Este almacén no tiene productos en stock.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </Card>
+                <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Hacia Almacén (Destino)</label>
+                    <select value={toWarehouseId} onChange={e => setToWarehouseId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2" disabled={!fromWarehouseId}>
+                        <option value="">Seleccione destino...</option>
+                        {warehouses.filter(w => w.id !== fromWarehouseId).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                </div>
+                <Input label="Cantidad a Transferir" type="number" value={quantity} onChange={e => setQuantity(Math.max(1, Math.min(maxQuantity, parseInt(e.target.value) || 1)))} min="1" max={maxQuantity} required disabled={!fromWarehouseId || maxQuantity === 0} />
+                <Textarea label="Detalles de la Transferencia" value={details} onChange={e => setDetails(e.target.value)} rows={2} />
+                <div className="flex justify-end pt-4 gap-3">
+                    <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cancelar</Button>
+                    <Button type="submit" disabled={!fromWarehouseId || !toWarehouseId || quantity <= 0 || fromWarehouseId === toWarehouseId || quantity > maxQuantity}>Confirmar Transferencia</Button>
+                </div>
+            </form>
+        </Modal>
     );
-};
-
-const WarehousesSection = () => {
-    const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
-
-    if (selectedWarehouseId) {
-        return <WarehouseDetailView warehouseId={selectedWarehouseId} onBack={() => setSelectedWarehouseId(null)} />;
-    }
-
-    return <WarehousesView onWarehouseSelect={setSelectedWarehouseId} />;
 };
 
 const LogView = () => {
     const { logs } = useInventoryState();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [showColumnFilter, setShowColumnFilter] = useState(false);
-    const [documentModal, setDocumentModal] = useState<{ log: LogEntry, type: 'CONSTANCIA' | 'GUIA_DESPACHO' } | null>(null);
-    const columnFilterRef = useRef<HTMLDivElement>(null);
+    type DocumentType = 'CONSTANCIA' | 'GUIA_DESPACHO' | 'GUIA_REMISION';
+    const [documentToView, setDocumentToView] = useState<{ logEntries: LogEntry[], type: DocumentType } | null>(null);
 
-    // FIX: Add explicit type to columnConfig to prevent type inference issues with Object.entries
-    const columnConfig: Record<string, { header: string }> = useMemo(() => ({
-        timestamp: { header: "Fecha y Hora" },
-        product: { header: "Producto" },
-        user: { header: "Usuario" },
-        warehouse: { header: "Almacén" },
-        type: { header: "Tipo" },
-        change: { header: "Cambio" },
-        stock: { header: "Stock en Almacén" },
-        details: { header: "Detalles" },
-    }), []);
-    
-    type VisibleColumns = Record<keyof typeof columnConfig, boolean>;
+    const handleOpenDocument = (type: DocumentType, logEntries: LogEntry[]) => {
+        setDocumentToView({ logEntries, type });
+    };
 
-    const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>(() => {
-        const initial: Partial<VisibleColumns> = {};
-        for (const key in columnConfig) {
-            initial[key as keyof typeof columnConfig] = true;
-        }
-        return initial as VisibleColumns;
-    });
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (columnFilterRef.current && !columnFilterRef.current.contains(event.target as Node)) {
-                setShowColumnFilter(false);
+    const groupedLogs = useMemo(() => {
+        const groups: { [key: string]: LogEntry[] } = {};
+        logs.forEach(log => {
+            if (log.transactionId) {
+                if (!groups[log.transactionId]) {
+                    groups[log.transactionId] = [];
+                }
+                groups[log.transactionId].push(log);
             }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const filteredLogs = useMemo(() => {
-        const lowercasedFilter = searchTerm.toLowerCase();
-        if (!lowercasedFilter) return logs;
-        return logs.filter(log =>
-            Object.values(log).some(value => 
-                String(value).toLowerCase().includes(lowercasedFilter)
-            )
-        );
-    }, [logs, searchTerm]);
-
-    const getLogTypeClass = (type: LogType) => ({
-        'ENTRADA': 'bg-green-500/20 text-green-400',
-        'SALIDA': 'bg-red-500/20 text-red-400',
-        'AJUSTE': 'bg-yellow-500/20 text-yellow-400',
-        'CREACIÓN': 'bg-blue-500/20 text-blue-400',
-    }[type]);
-    
-    const handleExport = () => {
-        const activeHeaders = Object.entries(columnConfig)
-            .filter(([key]) => visibleColumns[key as keyof VisibleColumns])
-            .map(([, config]) => config.header);
-
-        if (activeHeaders.includes("Producto")) {
-            const prodIndex = activeHeaders.indexOf("Producto");
-            activeHeaders.splice(prodIndex, 1, "Producto", "SKU");
-        }
-        
-        const data = filteredLogs.map(log => {
-            const row: (string|number)[] = [];
-            if (visibleColumns.timestamp) row.push(new Date(log.timestamp).toLocaleString('es-ES'));
-            if (visibleColumns.product) {
-                row.push(log.productName);
-                row.push(log.sku);
-            }
-            if (visibleColumns.user) row.push(log.user);
-            if (visibleColumns.warehouse) row.push(log.warehouseName);
-            if (visibleColumns.type) row.push(log.type);
-            if (visibleColumns.change) row.push(log.quantityChange);
-            if (visibleColumns.stock) row.push(log.newQuantityInWarehouse);
-            if (visibleColumns.details) row.push(log.details);
-            return row;
         });
+        return groups;
+    }, [logs]);
 
-        exportToCsv('registro_movimientos.csv', activeHeaders, data);
-    };
-
-    const toggleColumn = (key: keyof VisibleColumns) => {
-        setVisibleColumns(prev => ({ ...prev, [key]: !prev[key] }));
-    };
-
+    const renderedLogIds = new Set<string>();
+    
     return (
-        <Card>
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                <h2 className="text-2xl font-bold text-white">Registro de Movimientos</h2>
-                <div className="flex items-center gap-2 w-full md:w-auto flex-wrap justify-end">
-                     <Input
-                        type="text"
-                        placeholder="Buscar en registros..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        label=""
-                        className="w-full sm:w-auto"
-                    />
-                    <div className="relative" ref={columnFilterRef}>
-                        <Button onClick={() => setShowColumnFilter(prev => !prev)} className="bg-gray-600 hover:bg-gray-700">
-                            {ICONS.filter}
-                            Columnas
-                        </Button>
-                        {showColumnFilter && (
-                            <div className="absolute top-full right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10">
-                                <ul className="p-2 space-y-1">
-                                    {Object.entries(columnConfig).map(([key, config]) => (
-                                         <li key={key}>
-                                            <label className="flex items-center space-x-3 cursor-pointer px-2 py-1 rounded-md hover:bg-gray-700">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={visibleColumns[key as keyof VisibleColumns]}
-                                                    onChange={() => toggleColumn(key as keyof VisibleColumns)}
-                                                    className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span className="text-gray-300 text-sm">{config.header}</span>
-                                            </label>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                    <Button onClick={handleExport} className="bg-green-600 hover:bg-green-700">{ICONS.export} Exportar</Button>
-                </div>
-            </div>
-             <div className="overflow-x-auto">
-                <table className="w-full text-left text-gray-300">
-                    <thead className="border-b border-gray-700 text-xs text-gray-400 uppercase">
-                        <tr>
-                            {Object.entries(columnConfig).map(([key, config]) => 
-                                visibleColumns[key as keyof VisibleColumns] && (
-                                    <th key={key} className={`px-6 py-3 ${(key === 'change' || key === 'stock') ? 'text-center' : ''}`}>{config.header}</th>
-                                )
-                            )}
-                             <th className="px-6 py-3 text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredLogs.map(log => (
-                            <tr key={log.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                                {visibleColumns.timestamp && <td className="px-6 py-4 font-mono text-sm">{new Date(log.timestamp).toLocaleString()}</td>}
-                                {visibleColumns.product && <td className="px-6 py-4">
-                                    <div className="font-semibold text-white">{log.productName}</div>
-                                    <div className="text-xs text-gray-400 font-mono">{log.sku}</div>
-                                </td>}
-                                {visibleColumns.user && <td className="px-6 py-4">{log.user}</td>}
-                                {visibleColumns.warehouse && <td className="px-6 py-4">{log.warehouseName}</td>}
-                                {visibleColumns.type && <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getLogTypeClass(log.type)}`}>{log.type}</span>
-                                </td>}
-                                {visibleColumns.change && <td className={`px-6 py-4 text-center font-bold ${log.quantityChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {log.quantityChange > 0 ? `+${log.quantityChange}` : log.quantityChange}
-                                </td>}
-                                {visibleColumns.stock && <td className="px-6 py-4 text-center font-bold text-white">{log.newQuantityInWarehouse}</td>}
-                                {visibleColumns.details && <td className="px-6 py-4 text-sm text-gray-400">{log.details}</td>}
-                                <td className="px-6 py-4">
-                                    <div className="flex justify-center items-center gap-2">
-                                        <Button onClick={() => setDocumentModal({ log, type: 'CONSTANCIA' })} className="!p-2 bg-gray-600 hover:bg-gray-700" title="Generar Constancia">
-                                            {ICONS.document}
-                                        </Button>
-                                        {log.type === 'SALIDA' && (
-                                            <Button onClick={() => setDocumentModal({ log, type: 'GUIA_DESPACHO' })} className="!p-2 bg-blue-600 hover:bg-blue-700" title="Generar Guía de Despacho">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125V14.25m-17.25 4.5v-1.875a3.375 3.375 0 0 1 3.375-3.375h9.75a3.375 3.375 0 0 1 3.375 3.375v1.875M16.5 7.5l-4.5-4.5m0 0L7.5 7.5m4.5-4.5v11.25" /></svg>
-                                            </Button>
-                                        )}
-                                    </div>
-                                </td>
+        <div className="space-y-6">
+            <h1 className="text-3xl font-bold text-white">Registro de Movimientos</h1>
+            <Card>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                         <thead className="border-b border-gray-700 text-sm text-gray-400">
+                            <tr>
+                                <th className="p-4">Fecha y Hora</th>
+                                <th className="p-4">Producto</th>
+                                <th className="p-4">Almacén</th>
+                                <th className="p-4">Tipo</th>
+                                <th className="p-4 text-center">Cambio</th>
+                                <th className="p-4 text-center">Stock Final</th>
+                                <th className="p-4">Detalles</th>
+                                <th className="p-4">Usuario</th>
+                                <th className="p-4 text-center">Acciones</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {documentModal && (
+                        </thead>
+                        <tbody>
+                            {logs.map((log) => {
+                                if (renderedLogIds.has(log.id)) {
+                                    return null;
+                                }
+
+                                if (log.transactionId && groupedLogs[log.transactionId]) {
+                                    const transactionLogs = groupedLogs[log.transactionId];
+                                    const firstLog = transactionLogs[0];
+                                    const fromWarehouse = transactionLogs.find(l => l.type === 'SALIDA')?.warehouseName || 'N/A';
+                                    const toWarehouse = transactionLogs.find(l => l.type === 'ENTRADA')?.warehouseName || 'N/A';
+                                    
+                                    transactionLogs.forEach(l => renderedLogIds.add(l.id));
+
+                                    return (
+                                        <React.Fragment key={log.transactionId}>
+                                            <tr className="border-b border-gray-700 bg-gray-800/60 font-semibold">
+                                                <td className="p-4 whitespace-nowrap">{new Date(firstLog.timestamp).toLocaleString()}</td>
+                                                <td className="p-4" colSpan={3}>
+                                                    Transferencia Múltiple
+                                                    <p className="text-xs font-normal text-gray-400">{fromWarehouse} &rarr; {toWarehouse}</p>
+                                                </td>
+                                                <td className="p-4 text-center" colSpan={2}>({transactionLogs.length / 2} productos)</td>
+                                                <td className="p-4">{firstLog.details}</td>
+                                                <td className="p-4">{firstLog.user}</td>
+                                                <td className="p-4">
+                                                    <div className="flex justify-center items-center gap-1">
+                                                        <Button onClick={() => handleOpenDocument('CONSTANCIA', groupedLogs[log.transactionId])} title="Generar Constancia" className="text-xs p-1.5 bg-gray-700 hover:bg-gray-600">{ICONS.document}</Button>
+                                                        <Button onClick={() => handleOpenDocument('GUIA_DESPACHO', groupedLogs[log.transactionId])} title="Generar Guía de Despacho" className="text-xs p-1.5 bg-teal-700 hover:bg-teal-600">{ICONS.document}</Button>
+                                                        <Button onClick={() => handleOpenDocument('GUIA_REMISION', groupedLogs[log.transactionId])} title="Generar Guía de Remisión" className="text-xs p-1.5 bg-purple-700 hover:bg-purple-600">{ICONS.qr}</Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {transactionLogs.map(l => (
+                                                <tr key={l.id} className="border-b border-gray-800 hover:bg-gray-800/50 text-sm text-gray-400">
+                                                    <td className="pl-8 py-2 pr-4 text-xs whitespace-nowrap">&rdsh; {new Date(l.timestamp).toLocaleTimeString()}</td>
+                                                    <td className="p-2">{l.productName}<p className="text-xs text-gray-500 font-mono">{l.sku}</p></td>
+                                                    <td className="p-2">{l.warehouseName}</td>
+                                                    <td className="p-2">
+                                                        <span className={`px-2 py-0.5 text-xs rounded-full ${l.type === 'ENTRADA' ? 'bg-green-500/20 text-green-400' : l.type === 'SALIDA' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>{l.type}</span>
+                                                    </td>
+                                                    <td className={`p-2 text-center font-semibold ${l.quantityChange > 0 ? 'text-green-400' : 'text-red-400'}`}>{l.quantityChange > 0 ? `+${l.quantityChange}` : l.quantityChange}</td>
+                                                    <td className="p-2 text-center font-semibold text-white">{l.newQuantityInWarehouse}</td>
+                                                    <td className="p-2 italic text-xs" colSpan={3}>ID Transacción: {log.transactionId}</td>
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
+                                    );
+                                }
+                                
+                                renderedLogIds.add(log.id);
+                                return (
+                                    <tr key={log.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                                        <td className="p-4 whitespace-nowrap">{new Date(log.timestamp).toLocaleString()}</td>
+                                        <td className="p-4">
+                                            <p className="font-semibold text-white">{log.productName}</p>
+                                            <p className="text-xs text-gray-500 font-mono">{log.sku}</p>
+                                        </td>
+                                        <td className="p-4">{log.warehouseName}</td>
+                                        <td className="p-4">
+                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${log.type === 'ENTRADA' || log.type === 'CREACIÓN' ? 'bg-green-500/20 text-green-400' : log.type === 'SALIDA' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                {log.type}
+                                            </span>
+                                        </td>
+                                        <td className={`p-4 text-center font-bold ${log.quantityChange > 0 ? 'text-green-400' : 'text-red-400'}`}>{log.quantityChange > 0 ? `+${log.quantityChange}` : log.quantityChange !== 0 ? log.quantityChange : '-'}</td>
+                                        <td className="p-4 text-center font-bold text-white">{log.newQuantityInWarehouse}</td>
+                                        <td className="p-4 text-sm text-gray-400 italic">{log.details}</td>
+                                        <td className="p-4 text-sm text-gray-300">{log.user}</td>
+                                        <td className="p-4">
+                                            <div className="flex justify-center items-center gap-1">
+                                                <Button onClick={() => handleOpenDocument('CONSTANCIA', [log])} title="Generar Constancia" className="text-xs p-1.5 bg-gray-700 hover:bg-gray-600">{ICONS.document}</Button>
+                                                {(log.type === 'SALIDA' || log.type === 'AJUSTE') &&
+                                                    <>
+                                                        <Button onClick={() => handleOpenDocument('GUIA_DESPACHO', [log])} title="Generar Guía de Despacho" className="text-xs p-1.5 bg-teal-700 hover:bg-teal-600">{ICONS.document}</Button>
+                                                        <Button onClick={() => handleOpenDocument('GUIA_REMISION', [log])} title="Generar Guía de Remisión" className="text-xs p-1.5 bg-purple-700 hover:bg-purple-600">{ICONS.qr}</Button>
+                                                    </>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+
+            {documentToView && (
                 <MovementDocumentModal
-                    logEntry={documentModal.log}
-                    docType={documentModal.type}
-                    onClose={() => setDocumentModal(null)}
+                    logEntries={documentToView.logEntries}
+                    docType={documentToView.type}
+                    onClose={() => setDocumentToView(null)}
                 />
             )}
-        </Card>
+        </div>
     );
 };
 
-const UserFormModal = ({ user, onClose, onSave }: { user?: User, onClose: () => void, onSave: (data: { user: Omit<User, 'id'> | User, warehouseIds: string[] }) => void }) => {
+const UsersView = () => {
+    const { users, userWarehouseAccess, warehouses } = useInventoryState();
+    const dispatch = useInventoryDispatch();
+    
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState<User | null>(null);
+
+    const handleOpenModal = (user: User | null = null) => {
+        setEditingUser(user);
+        setIsModalOpen(true);
+    };
+    
+    const handleCloseModal = () => {
+        setEditingUser(null);
+        setIsModalOpen(false);
+    };
+
+    const handleSaveUser = (user: Omit<User, 'id'> | User, warehouseIds: string[]) => {
+        if ('id' in user) {
+            dispatch({ type: 'UPDATE_USER', payload: { user, warehouseIds } });
+        } else {
+            dispatch({ type: 'ADD_USER', payload: { user, warehouseIds } });
+        }
+        handleCloseModal();
+    };
+    
+    const handleDeleteUser = (userId: string) => {
+        if (window.confirm('¿Está seguro de que desea eliminar este usuario?')) {
+            dispatch({ type: 'DELETE_USER', payload: { userId } });
+        }
+    };
+    
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-white">Gestión de Usuarios</h1>
+                <Button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700">
+                    {ICONS.plus}
+                    Añadir Usuario
+                </Button>
+            </div>
+            <Card>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="border-b border-gray-700 text-sm text-gray-400">
+                            <tr>
+                                <th className="p-4">Nombre</th>
+                                <th className="p-4">Rol</th>
+                                <th className="p-4">Almacenes Asignados</th>
+                                <th className="p-4 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.map(user => {
+                                const assignedWarehouses = userWarehouseAccess
+                                    .filter(access => access.userId === user.id)
+                                    .map(access => warehouses.find(w => w.id === access.warehouseId)?.name)
+                                    .filter(Boolean);
+                                
+                                return (
+                                    <tr key={user.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                                        <td className="p-4">
+                                            <p className="font-semibold text-white">{user.name}</p>
+                                            <p className="text-xs text-gray-500">{user.email}</p>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                                user.role === 'ADMINISTRADOR' ? 'bg-purple-500/20 text-purple-400' :
+                                                user.role === 'GERENTE' ? 'bg-sky-500/20 text-sky-400' :
+                                                'bg-gray-500/20 text-gray-400'
+                                            }`}>{user.role}</span>
+                                        </td>
+                                        <td className="p-4 text-sm text-gray-300">
+                                            {user.role === 'ADMINISTRADOR' ? 'Todos' : assignedWarehouses.join(', ')}
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex justify-center items-center gap-2">
+                                                <Button onClick={() => handleOpenModal(user)} className="bg-gray-700 hover:bg-gray-600 p-2"><span className="sr-only">Editar</span>{ICONS.edit}</Button>
+                                                <Button onClick={() => handleDeleteUser(user.id)} className="bg-red-800 hover:bg-red-700 p-2"><span className="sr-only">Eliminar</span>{ICONS.trash}</Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+            {isModalOpen && <UserFormModal user={editingUser} onClose={handleCloseModal} onSave={handleSaveUser} />}
+        </div>
+    );
+};
+
+const UserFormModal = ({ user, onClose, onSave }: { user: User | null, onClose: () => void, onSave: (user: Omit<User, 'id'> | User, warehouseIds: string[]) => void }) => {
     const { warehouses, userWarehouseAccess } = useInventoryState();
     const [formData, setFormData] = useState({
         name: user?.name || '',
         email: user?.email || '',
         role: user?.role || 'EMPLEADO' as UserRole,
     });
-    const [selectedWarehouses, setSelectedWarehouses] = useState<string[]>(() => {
-        if (!user) return [];
-        return userWarehouseAccess.filter(access => access.userId === user.id).map(access => access.warehouseId);
-    });
+    
+    const initialWarehouseIds = user ? userWarehouseAccess
+        .filter(access => access.userId === user.id)
+        .map(access => access.warehouseId) : [];
+    
+    const [selectedWarehouses, setSelectedWarehouses] = useState<string[]>(initialWarehouseIds);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
 
     const handleWarehouseToggle = (warehouseId: string) => {
         setSelectedWarehouses(prev => 
-            prev.includes(warehouseId) 
-                ? prev.filter(id => id !== warehouseId) 
+            prev.includes(warehouseId)
+                ? prev.filter(id => id !== warehouseId)
                 : [...prev, warehouseId]
         );
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const userData = user ? { ...user, ...formData } : { ...formData };
-        onSave({ user: userData, warehouseIds: formData.role === 'ADMINISTRADOR' ? [] : selectedWarehouses });
+        const userPayload = user ? { ...user, ...formData } : formData;
+        onSave(userPayload, selectedWarehouses);
     };
 
     return (
         <Modal isOpen={true} onClose={onClose} title={user ? 'Editar Usuario' : 'Añadir Usuario'}>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <Input label="Nombre Completo" name="name" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} required />
-                <Input label="Correo Electrónico" name="email" type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} required />
+                <Input label="Nombre Completo" name="name" value={formData.name} onChange={handleChange} required />
+                <Input label="Correo Electrónico" name="email" type="email" value={formData.email} onChange={handleChange} required />
                 <div>
                     <label className="block text-sm font-medium text-gray-400 mb-1">Rol</label>
-                    <select value={formData.role} onChange={e => setFormData(p => ({ ...p, role: e.target.value as UserRole }))} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
-                        <option value="ADMINISTRADOR">Administrador</option>
-                        <option value="GERENTE">Gerente</option>
+                    <select name="role" value={formData.role} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
                         <option value="EMPLEADO">Empleado</option>
+                        <option value="GERENTE">Gerente</option>
+                        <option value="ADMINISTRADOR">Administrador</option>
                     </select>
                 </div>
+
                 {formData.role !== 'ADMINISTRADOR' && (
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-2">Permisos de Almacén</label>
-                        <div className="space-y-2 max-h-40 overflow-y-auto p-3 bg-gray-800 rounded-md">
+                        <label className="block text-sm font-medium text-gray-400 mb-2">Almacenes Asignados</label>
+                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 bg-gray-800 rounded-lg">
                             {warehouses.map(w => (
-                                <label key={w.id} className="flex items-center space-x-3 cursor-pointer">
-                                    <input 
-                                        type="checkbox" 
+                                <label key={w.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-700/50 cursor-pointer">
+                                    <input
+                                        type="checkbox"
                                         checked={selectedWarehouses.includes(w.id)}
                                         onChange={() => handleWarehouseToggle(w.id)}
-                                        className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500"
+                                        className="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600"
                                     />
                                     <span className="text-gray-300">{w.name}</span>
                                 </label>
@@ -1246,245 +1085,182 @@ const UserFormModal = ({ user, onClose, onSave }: { user?: User, onClose: () => 
                 )}
                 <div className="flex justify-end pt-4 gap-3">
                     <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cancelar</Button>
-                    <Button type="submit">{user ? 'Guardar Cambios' : 'Añadir Usuario'}</Button>
+                    <Button type="submit">{user ? 'Guardar Cambios' : 'Crear Usuario'}</Button>
                 </div>
             </form>
         </Modal>
     );
 };
 
-const UsersView = () => {
-    const { users, currentUser } = useInventoryState();
-    const dispatch = useInventoryDispatch();
-    const [modal, setModal] = useState<'add' | 'edit' | null>(null);
-    const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-    const handleSave = (data: { user: Omit<User, 'id'> | User, warehouseIds: string[] }) => {
-        if (modal === 'add') {
-            dispatch({ type: 'ADD_USER', payload: { user: data.user as Omit<User, 'id'>, warehouseIds: data.warehouseIds } });
-        } else if (selectedUser) {
-            dispatch({ type: 'UPDATE_USER', payload: { user: data.user as User, warehouseIds: data.warehouseIds } });
-        }
-        setModal(null);
-    };
-
-    const getRoleClass = (role: UserRole) => ({
-        'ADMINISTRADOR': 'bg-purple-500/20 text-purple-400',
-        'GERENTE': 'bg-blue-500/20 text-blue-400',
-        'EMPLEADO': 'bg-gray-500/20 text-gray-400',
-    }[role]);
-
-    return (
-        <Card>
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-white">Gestión de Usuarios</h2>
-                <Button onClick={() => { setSelectedUser(null); setModal('add'); }}>{ICONS.plus} Añadir Usuario</Button>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-gray-300">
-                    <thead className="border-b border-gray-700 text-xs text-gray-400 uppercase">
-                        <tr>
-                            <th className="px-6 py-3">Nombre</th>
-                            <th className="px-6 py-3">Correo Electrónico</th>
-                            <th className="px-6 py-3">Rol</th>
-                            <th className="px-6 py-3 text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {users.map(u => (
-                            <tr key={u.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                                <td className="px-6 py-4 font-semibold text-white">{u.name}</td>
-                                <td className="px-6 py-4">{u.email}</td>
-                                <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getRoleClass(u.role)}`}>{u.role}</span>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex justify-center space-x-2">
-                                        <button title="Editar" onClick={() => { setSelectedUser(u); setModal('edit'); }} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors">{ICONS.edit}</button>
-                                        {u.id !== currentUser?.id && (
-                                            <button title="Eliminar" onClick={() => dispatch({type: 'DELETE_USER', payload: {userId: u.id}})} className="p-2 text-red-500 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors">{ICONS.trash}</button>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {(modal === 'add' || modal === 'edit') && <UserFormModal user={selectedUser || undefined} onClose={() => setModal(null)} onSave={handleSave} />}
-        </Card>
-    );
-};
-
-// Estructura Principal de la App
-const AppContent = () => {
-    const [view, setView] = useState<View>('dashboard');
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const { currentUser } = useInventoryState();
-    const dispatch = useInventoryDispatch();
-
-    const navItems: { id: View, name: string, icon: React.ReactNode }[] = [
-        { id: 'dashboard', name: 'Dashboard', icon: ICONS.dashboard },
-        { id: 'products', name: 'Productos', icon: ICONS.product },
-        { id: 'warehouses', name: 'Almacenes', icon: ICONS.warehouse },
-        { id: 'users', name: 'Usuarios', icon: ICONS.users },
-        { id: 'log', name: 'Registro', icon: ICONS.log },
-        { id: 'settings', name: 'Configuración', icon: ICONS.settings },
-    ];
-
-    const handleNavItemClick = (viewId: View) => {
-        setView(viewId);
-        setIsSidebarOpen(false); // Cierra el menú en móvil al navegar
-    };
-
-    const visibleNavItems = navItems.filter(item => {
-        if (currentUser?.role === 'ADMINISTRADOR') return true;
-        return item.id !== 'users' && item.id !== 'settings';
-    });
-
-    const renderView = () => {
-        switch (view) {
-            case 'dashboard': return <DashboardView />;
-            case 'products': return <ProductsView />;
-            case 'warehouses': return <WarehousesSection />;
-            case 'log': return <LogView />;
-            case 'users': return currentUser?.role === 'ADMINISTRADOR' ? <UsersView /> : <DashboardView/>;
-            case 'settings': return currentUser?.role === 'ADMINISTRADOR' ? <SettingsView /> : <DashboardView/>;
-            default: return <DashboardView />;
-        }
-    };
-
-    if (!currentUser) return null;
-
-    return (
-        <div className="flex h-screen bg-gray-900 text-gray-300">
-             {isSidebarOpen && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-60 z-30 md:hidden"
-                    onClick={() => setIsSidebarOpen(false)}
-                ></div>
-            )}
-            <aside className={`w-64 flex-shrink-0 bg-gray-800 p-4 transform transition-transform duration-300 ease-in-out z-40 fixed h-full md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="flex items-center mb-10 h-16 px-2">
-                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-blue-500 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.03 1.125 0 1.131.094 1.976 1.057 1.976 2.192V7.5M12 14.25a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H3.375a2.25 2.25 0 0 0-2.25 2.25v10.5a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
-                   <span className="text-xl font-semibold text-white">Inventario Simple</span>
-                </div>
-                <nav>
-                    <ul className="space-y-2">
-                        {visibleNavItems.map(item => (
-                            <li key={item.id}>
-                                <a href="#" onClick={(e) => { e.preventDefault(); handleNavItemClick(item.id); }} 
-                                   className={`flex items-center gap-3 p-3 rounded-lg font-medium transition-colors ${view === item.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
-                                    {item.icon}
-                                    <span>{item.name}</span>
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                </nav>
-            </aside>
-            <div className="flex-1 flex flex-col overflow-hidden">
-                 <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
-                    <button
-                        className="p-2 text-gray-400 hover:text-white md:hidden"
-                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        aria-label="Abrir menú"
-                    >
-                        {ICONS.hamburger}
-                    </button>
-                    <div className="flex items-center gap-4 ml-auto">
-                        <div className="text-right">
-                            <p className="font-semibold text-white">{currentUser.name}</p>
-                            <p className="text-xs text-gray-400">{currentUser.role}</p>
-                        </div>
-                        <button 
-                            onClick={() => dispatch({ type: 'LOGOUT' })} 
-                            title="Cerrar Sesión"
-                            className="p-2 text-gray-400 hover:text-white hover:bg-red-600/50 rounded-md transition-colors"
-                        >
-                            {ICONS.logout}
-                        </button>
-                    </div>
-                </header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-900 p-8">
-                    {renderView()}
-                </main>
-            </div>
-        </div>
-    );
-}
-
-const LoginScreen = () => {
+const LoginView = () => {
     const { users } = useInventoryState();
     const dispatch = useInventoryDispatch();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-
+    
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
-        const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-        if (user) {
-            // En una app real, aquí se validaría la contraseña con un hash
-            dispatch({ type: 'LOGIN', payload: { user } });
+        setError(''); // Resetear error en nuevo intento
+        const userToLogin = users.find(u => u.email === email);
+        
+        if (userToLogin && userToLogin.password === password) {
+            dispatch({ type: 'LOGIN', payload: { user: userToLogin } });
         } else {
-            setError('Correo o contraseña incorrectos.');
+            setError('Correo electrónico o contraseña incorrectos.');
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center text-white p-4">
-            <div className="w-full max-w-md">
-                <div className="flex items-center justify-center mb-8">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-blue-500 mr-3"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.03 1.125 0 1.131.094 1.976 1.057 1.976 2.192V7.5M12 14.25a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H3.375a2.25 2.25 0 0 0-2.25 2.25v10.5a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
-                    <h1 className="text-3xl font-bold text-white">Inventario Simple</h1>
-                </div>
-                <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-8">
-                    <h2 className="text-2xl font-semibold text-center text-gray-200 mb-6">Iniciar Sesión</h2>
-                    <form onSubmit={handleLogin} className="space-y-6">
-                        <Input
-                            label="Correo Electrónico"
-                            type="email"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                            required
-                            autoComplete="email"
-                        />
-                        <Input
-                            label="Contraseña"
-                            type="password"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            required
-                            autoComplete="current-password"
-                        />
-                        {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-                        <Button type="submit" className="w-full !py-3 !text-base">
+        <div className="min-h-screen flex items-center justify-center bg-gray-900">
+            <Card className="w-full max-w-sm">
+                <h2 className="text-2xl font-bold text-center text-white mb-6">Iniciar Sesión</h2>
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <Input 
+                        label="Correo Electrónico" 
+                        type="email" 
+                        value={email} 
+                        onChange={e => setEmail(e.target.value)} 
+                        required 
+                        autoComplete="email"
+                    />
+                    <Input 
+                        label="Contraseña" 
+                        type="password" 
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)} 
+                        required 
+                        autoComplete="current-password"
+                    />
+
+                    {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
+                    <div className="pt-2">
+                        <Button type="submit" className="w-full">
                             Ingresar
                         </Button>
-                    </form>
-                </div>
-                <div className="text-center mt-4 text-xs text-gray-500">
-                    <p>Usuarios de prueba:</p>
-                    <p>admin@dominio.com | gerente@dominio.com | empleado@dominio.com</p>
-                    <p>(Cualquier contraseña es válida)</p>
-                </div>
-            </div>
+                    </div>
+                </form>
+            </Card>
         </div>
     );
-};
-
+}
 
 const App = () => {
     const { currentUser } = useInventoryState();
+    const [view, setView] = useState<View>('dashboard');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const dispatch = useInventoryDispatch();
 
+    useEffect(() => {
+        // Lógica de sesión simple: si no hay usuario, quédate en el login
+        if (!currentUser) {
+            // No hacer nada, la vista de Login se mostrará
+        }
+    }, [currentUser]);
+
+    const handleLogout = () => {
+        if(window.confirm('¿Está seguro de que desea cerrar sesión?')) {
+            dispatch({ type: 'LOGOUT' });
+        }
+    }
+    
     if (!currentUser) {
-        return <LoginScreen />;
+        return <LoginView />;
     }
 
-    return <AppContent />;
+    const navItems = [
+        { id: 'dashboard', label: 'Dashboard', icon: ICONS.dashboard, roles: ['ADMINISTRADOR', 'GERENTE', 'EMPLEADO'] },
+        { id: 'products', label: 'Productos', icon: ICONS.product, roles: ['ADMINISTRADOR', 'GERENTE', 'EMPLEADO'] },
+        { id: 'log', label: 'Registro', icon: ICONS.log, roles: ['ADMINISTRADOR', 'GERENTE'] },
+        { id: 'users', label: 'Usuarios', icon: ICONS.users, roles: ['ADMINISTRADOR'] },
+        { id: 'settings', label: 'Configuración', icon: ICONS.settings, roles: ['ADMINISTRADOR'] },
+    ];
+    
+    const permittedNavItems = navItems.filter(item => item.roles.includes(currentUser.role));
+
+    const renderView = () => {
+        switch (view) {
+            case 'dashboard': return <DashboardView />;
+            case 'products': return <ProductsView />;
+            case 'log': return <LogView />;
+            case 'users': return <UsersView />;
+            case 'settings': return <SettingsView />;
+            default: return <DashboardView />;
+        }
+    };
+
+    // Componente de enlace de navegación para evitar repetición
+    // FIX: Explicitly type NavLink as React.FC to correctly handle the 'key' prop in loops.
+    const NavLink: React.FC<{ item: typeof navItems[0] }> = ({ item }) => (
+        <a
+            href="#"
+            onClick={(e) => { e.preventDefault(); setView(item.id as View); setIsMobileMenuOpen(false); }}
+            className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${view === item.id ? 'bg-gray-900 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}
+        >
+            {item.icon}
+            <span>{item.label}</span>
+        </a>
+    );
+
+    return (
+        <div className="flex h-screen bg-gray-900 text-gray-300">
+            {/* Sidebar */}
+            <aside className="hidden md:flex flex-col w-64 bg-gray-800 border-r border-gray-700 p-4">
+                <div className="flex items-center gap-3 mb-8">
+                    {/* Placeholder for logo */}
+                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">S</div>
+                    <h1 className="text-xl font-bold text-white">Inventario</h1>
+                </div>
+                <nav className="flex-1 space-y-2">
+                    {permittedNavItems.map(item => <NavLink key={item.id} item={item} />)}
+                </nav>
+                 <div className="mt-auto">
+                     <div className="p-3 bg-gray-900/50 rounded-lg">
+                        <p className="text-sm font-semibold text-white">{currentUser.name}</p>
+                        <p className="text-xs text-gray-400">{currentUser.role}</p>
+                    </div>
+                     <Button onClick={handleLogout} className="w-full mt-4 bg-red-800 hover:bg-red-700">
+                        {ICONS.logout}
+                        <span className="hidden md:inline">Cerrar Sesión</span>
+                    </Button>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <header className="md:hidden flex justify-between items-center bg-gray-800 border-b border-gray-700 p-4">
+                     <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">S</div>
+                        <h1 className="text-lg font-bold text-white">Inventario</h1>
+                    </div>
+                    <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>{ICONS.hamburger}</button>
+                </header>
+                {/* Mobile Menu */}
+                {isMobileMenuOpen && (
+                    <div className="md:hidden bg-gray-800 border-b border-gray-700">
+                        <nav className="p-4 space-y-2">
+                            {permittedNavItems.map(item => <NavLink key={item.id} item={item} />)}
+                        </nav>
+                         <div className="p-4 border-t border-gray-700">
+                             <div className="p-3 bg-gray-900/50 rounded-lg mb-2">
+                                <p className="text-sm font-semibold text-white">{currentUser.name}</p>
+                                <p className="text-xs text-gray-400">{currentUser.role}</p>
+                            </div>
+                            <Button onClick={handleLogout} className="w-full bg-red-800 hover:bg-red-700">
+                                {ICONS.logout}
+                                <span>Cerrar Sesión</span>
+                            </Button>
+                        </div>
+                    </div>
+                )}
+                <main className="flex-1 overflow-y-auto p-6 md:p-8">
+                    {renderView()}
+                </main>
+            </div>
+        </div>
+    );
 };
 
 export default App;

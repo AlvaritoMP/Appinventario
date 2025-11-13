@@ -1,17 +1,26 @@
-import { Product, LogEntry, Warehouse, InventoryItem, User, UserRole, UserWarehouseAccess } from '../types';
+import { Product, LogEntry, Warehouse, InventoryItem, User, UserRole, UserWarehouseAccess, CompanyInfo } from '../types';
+
+export const mockCompanyInfo: CompanyInfo = {
+    name: "MULTIDISTRIBUCIONES",
+    tradeName: "EMPRESA SIMPLE SAC",
+    ruc: "20200200200",
+    fiscalAddress: "Manzana X lote 5 (1er.piso) Urb.Covicorti Trujillo - Trujillo - La Libertad",
+    branchAddress: "Av. Húsares de Junín 1248 Urb.La Merced III Trujillo - Trujillo - La Libertad",
+};
 
 export const mockWarehouses: Warehouse[] = [
-  { id: 'w1', name: 'Almacén Principal', location: 'Ciudad Capital, Zona Industrial' },
+  { id: 'w1', name: 'Almacén Principal', location: '150141 - AV LOS GERANIOS 321' },
   { id: 'w2', name: 'Bodega Norte', location: 'Ciudad Capital, Sector Norte' },
-  { id: 'w3', name: 'Punto de Venta Central', location: 'Ciudad Capital, Av. Principal 123' },
+  { id: 'w3', name: 'Punto de Venta Central', location: '150140 - AV. CAMINOS DEL INCA NRO. 3140 DPTO. 401 URB. PROLONGACION BENAVIDES - LIMA LIMA SANTIAGO DE SURCO' },
 ];
 
 export const mockProducts: Product[] = [
-  { id: 'p1', name: 'Taladro Inalámbrico 20V', sku: 'TLD-20V-001', category: 'Herramientas Eléctricas', price: 129.99, lowStockThreshold: 10, description: 'Potente taladro inalámbrico de 20V con batería de litio de larga duración. Ideal para trabajos de perforación en madera, metal y plástico.', images: ['https://via.placeholder.com/600x400.png/2d3748/ffffff?text=Taladro'] },
+  { id: 'p1', name: 'Taladro Inalámbrico 20V', sku: 'TLD-20V-001', category: 'Herramientas Elétricas', price: 129.99, lowStockThreshold: 10, description: 'Potente taladro inalámbrico de 20V con batería de litio de larga duración. Ideal para trabajos de perforación en madera, metal y plástico.', images: ['https://via.placeholder.com/600x400.png/2d3748/ffffff?text=Taladro'] },
   { id: 'p2', name: 'Juego de 100 Brocas', sku: 'BRC-100-002', category: 'Accesorios', price: 49.99, lowStockThreshold: 15, description: 'Set completo de 100 brocas de titanio de alta velocidad para múltiples materiales. Incluye estuche organizador.', images: ['https://via.placeholder.com/600x400.png/2d3748/ffffff?text=Brocas'] },
   { id: 'p3', name: 'Martillo de Carpintero', sku: 'MTC-CF-003', category: 'Herramientas Manuales', price: 24.50, lowStockThreshold: 20, description: 'Martillo de carpintero con cabeza de acero forjado y mango de fibra de vidrio para una absorción óptima de impactos.', images: ['https://via.placeholder.com/600x400.png/2d3748/ffffff?text=Martillo'] },
   { id: 'p4', name: 'Caja de Herramientas Metálica', sku: 'CJA-MTL-004', category: 'Almacenamiento', price: 75.00, lowStockThreshold: 5, description: 'Caja de herramientas metálica de 5 compartimentos, resistente y con amplio espacio para organizar todas tus herramientas.', images: ['https://via.placeholder.com/600x400.png/2d3748/ffffff?text=Caja'] },
   { id: 'p5', name: 'Guantes de Seguridad (Par)', sku: 'GNT-SEG-005', category: 'Seguridad', price: 9.99, lowStockThreshold: 50, description: 'Par de guantes de seguridad recubiertos de nitrilo para un mejor agarre y protección contra cortes y abrasiones.', images: ['https://via.placeholder.com/600x400.png/2d3748/ffffff?text=Guantes'] },
+  { id: 'p6', name: 'COCA COLA 500ML X12', sku: 'CF_600/04', category: 'Bebidas', price: 15.00, lowStockThreshold: 20, description: 'Paquete de 12 botellas de Coca Cola de 500ml.', images: [] },
 ];
 
 export const mockInventory: InventoryItem[] = [
@@ -24,6 +33,7 @@ export const mockInventory: InventoryItem[] = [
     { productId: 'p4', warehouseId: 'w2', quantity: 0 },
     { productId: 'p5', warehouseId: 'w1', quantity: 150 },
     { productId: 'p5', warehouseId: 'w2', quantity: 100 },
+    { productId: 'p6', warehouseId: 'w1', quantity: 50 },
 ];
 
 export const mockLogs: LogEntry[] = [
@@ -78,9 +88,10 @@ export const mockLogs: LogEntry[] = [
 ];
 
 export const mockUsers: User[] = [
-  { id: 'u1', name: 'Admin General', email: 'admin@dominio.com', role: 'ADMINISTRADOR' },
-  { id: 'u2', name: 'Gerente Bodega', email: 'gerente@dominio.com', role: 'GERENTE' },
-  { id: 'u3', name: 'Empleado Mostrador', email: 'empleado@dominio.com', role: 'EMPLEADO' },
+  { id: 'u1', name: 'Admin General', email: 'admin@dominio.com', role: 'ADMINISTRADOR', password: 'adminpassword' },
+  { id: 'u2', name: 'Gerente Bodega', email: 'gerente@dominio.com', role: 'GERENTE', password: 'gerentepassword' },
+  { id: 'u3', name: 'Empleado Mostrador', email: 'empleado@dominio.com', role: 'EMPLEADO', password: 'empleadopassword' },
+  { id: 'u4', name: 'JAYCO SOCIEDAD ANONIMA CERRADA', email: 'cliente@jayco.com', role: 'EMPLEADO', password: 'clientepassword' }, // Mock client
 ];
 
 export const mockUserWarehouseAccess: UserWarehouseAccess[] = [

@@ -34,6 +34,7 @@ export interface LogEntry {
   newQuantityInWarehouse: number;
   details: string;
   user: string;
+  transactionId?: string; // Para agrupar transferencias múltiples
 }
 
 export type UserRole = 'ADMINISTRADOR' | 'GERENTE' | 'EMPLEADO';
@@ -43,6 +44,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  password?: string; // Para autenticación
 }
 
 export interface UserWarehouseAccess {
@@ -52,7 +54,7 @@ export interface UserWarehouseAccess {
 
 export type View = 'dashboard' | 'products' | 'warehouses' | 'log' | 'users' | 'settings';
 
-// --- Nuevos Tipos de Configuración ---
+// --- Tipos de Configuración ---
 export interface ColorSettings {
     inStock: string;
     lowStock: string;
@@ -66,4 +68,13 @@ export interface AlertSettings {
 export interface AppSettings {
     colors: ColorSettings;
     alerts: AlertSettings;
+}
+
+// --- Nuevo Tipo para Información de la Empresa ---
+export interface CompanyInfo {
+    name: string;
+    tradeName: string;
+    ruc: string;
+    fiscalAddress: string;
+    branchAddress?: string;
 }
