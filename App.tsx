@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Product, LogEntry, View, LogType, Warehouse, User, UserRole } from './types';
+import { Product, LogEntry, View, LogType, Warehouse, User, UserRole, AppSettings } from './types';
 import { useInventoryState, useInventoryDispatch } from './context/InventoryContext';
 import { ICONS } from './constants';
+import { SettingsView } from './components/SettingsView';
+import { MovementDocumentModal } from './components/MovementDocumentModal';
 
 declare global {
   interface Window { QRious: any; }
@@ -53,13 +55,15 @@ const exportToCsv = (filename: string, headers: string[], data: (string | number
 
 
 // UI Components Reutilizables
-const Card = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
+// FIX: Made children prop optional to resolve TypeScript errors.
+const Card = ({ children, className = '' }: { children?: React.ReactNode, className?: string }) => (
   <div className={`bg-gray-800 border border-gray-700 rounded-lg shadow-md p-6 ${className}`}>
     {children}
   </div>
 );
 
-const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }: { isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode, maxWidth?: string }) => {
+// FIX: Made children prop optional to resolve TypeScript errors.
+const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }: { isOpen: boolean, onClose: () => void, title: string, children?: React.ReactNode, maxWidth?: string }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4" onClick={onClose}>
@@ -74,25 +78,27 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }: { is
   );
 };
 
-const Button = ({ children, onClick, className = 'bg-blue-600 hover:bg-blue-700', type = 'button', disabled = false }: { children: React.ReactNode, onClick?: () => void, className?: string, type?: 'button' | 'submit' | 'reset', disabled?: boolean }) => (
-  <button type={type} onClick={onClick} disabled={disabled} className={`flex items-center justify-center gap-2 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>
+// FIX: Made children prop optional to resolve TypeScript errors.
+// FIX: Added title prop to Button component to allow for tooltips.
+const Button = ({ children, onClick, className = 'bg-blue-600 hover:bg-blue-700', type = 'button', disabled = false, title }: { children?: React.ReactNode, onClick?: () => void, className?: string, type?: 'button' | 'submit' | 'reset', disabled?: boolean, title?: string }) => (
+  <button type={type} onClick={onClick} disabled={disabled} title={title} className={`flex items-center justify-center gap-2 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>
     {children}
   </button>
 );
 
-const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { label: string }>(({ label, ...props }, ref) => (
+const Input = ({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) => (
     <div>
         <label className="block text-sm font-medium text-gray-400 mb-1">{label}</label>
-        <input ref={ref} {...props} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 transition" />
+        <input {...props} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 transition" />
     </div>
-));
+);
 
-const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }>(({ label, ...props }, ref) => (
+const Textarea = ({ label, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }) => (
     <div>
         <label className="block text-sm font-medium text-gray-400 mb-1">{label}</label>
-        <textarea ref={ref} {...props} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 transition" />
+        <textarea {...props} className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 transition" />
     </div>
-));
+);
 
 // Vistas de la Aplicación
 const DashboardView = () => {
@@ -249,12 +255,13 @@ const DashboardView = () => {
 };
 
 const ProductFormModal = ({ product, onClose, onSave }: { product?: Product, onClose: () => void, onSave: (p: Omit<Product, 'id'>) => void }) => {
+    const { settings } = useInventoryState();
     const [formData, setFormData] = useState({
         name: product?.name || '',
         sku: product?.sku || '',
         category: product?.category || '',
         price: product?.price || 0,
-        lowStockThreshold: product?.lowStockThreshold || 0,
+        lowStockThreshold: product?.lowStockThreshold || settings.alerts.defaultLowStockThreshold || 0,
         description: product?.description || '',
     });
     const [images, setImages] = useState<string[]>(product?.images || []);
@@ -267,7 +274,8 @@ const ProductFormModal = ({ product, onClose, onSave }: { product?: Product, onC
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
+        // FIX: Add explicit File[] type to fix type inference issue
+        const files: File[] = Array.from(e.target.files || []);
         const remainingSlots = 4 - images.length;
         if (remainingSlots <= 0) return;
 
@@ -706,7 +714,7 @@ const ImportProductsModal = ({ onClose }: { onClose: () => void }) => {
 
 
 const ProductsView = () => {
-    const { products, inventory, currentUser } = useInventoryState();
+    const { products, inventory, currentUser, settings } = useInventoryState();
     const dispatch = useInventoryDispatch();
     const [filter, setFilter] = useState('');
     const [modal, setModal] = useState<'add' | 'edit' | 'adjust' | 'detail' | 'transfer' | 'import' | null>(null);
@@ -743,11 +751,11 @@ const ProductsView = () => {
         ).sort((a,b) => a.name.localeCompare(b.name)), [productTotals, filter]
     );
 
-    const getStockStatusClass = (p: { totalQuantity: number, lowStockThreshold: number }) => {
-        if (p.totalQuantity === 0) return 'bg-red-500/20 text-red-400 border-red-500/30';
-        if (p.totalQuantity <= p.lowStockThreshold) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
-    };
+    const getStockStatusClass = useCallback((p: { totalQuantity: number, lowStockThreshold: number }) => {
+        if (p.totalQuantity === 0) return settings.colors.outOfStock;
+        if (p.totalQuantity <= p.lowStockThreshold) return settings.colors.lowStock;
+        return settings.colors.inStock;
+    }, [settings]);
 
     const handleExport = () => {
         const headers = ["Nombre", "SKU", "Categoría", "Stock Total", "Precio", "Umbral Stock Bajo", "Descripción"];
@@ -995,6 +1003,7 @@ const LogView = () => {
     const { logs } = useInventoryState();
     const [searchTerm, setSearchTerm] = useState('');
     const [showColumnFilter, setShowColumnFilter] = useState(false);
+    const [documentModal, setDocumentModal] = useState<{ log: LogEntry, type: 'CONSTANCIA' | 'GUIA_DESPACHO' } | null>(null);
     const columnFilterRef = useRef<HTMLDivElement>(null);
 
     // FIX: Add explicit type to columnConfig to prevent type inference issues with Object.entries
@@ -1129,6 +1138,7 @@ const LogView = () => {
                                     <th key={key} className={`px-6 py-3 ${(key === 'change' || key === 'stock') ? 'text-center' : ''}`}>{config.header}</th>
                                 )
                             )}
+                             <th className="px-6 py-3 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1149,11 +1159,30 @@ const LogView = () => {
                                 </td>}
                                 {visibleColumns.stock && <td className="px-6 py-4 text-center font-bold text-white">{log.newQuantityInWarehouse}</td>}
                                 {visibleColumns.details && <td className="px-6 py-4 text-sm text-gray-400">{log.details}</td>}
+                                <td className="px-6 py-4">
+                                    <div className="flex justify-center items-center gap-2">
+                                        <Button onClick={() => setDocumentModal({ log, type: 'CONSTANCIA' })} className="!p-2 bg-gray-600 hover:bg-gray-700" title="Generar Constancia">
+                                            {ICONS.document}
+                                        </Button>
+                                        {log.type === 'SALIDA' && (
+                                            <Button onClick={() => setDocumentModal({ log, type: 'GUIA_DESPACHO' })} className="!p-2 bg-blue-600 hover:bg-blue-700" title="Generar Guía de Despacho">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125V14.25m-17.25 4.5v-1.875a3.375 3.375 0 0 1 3.375-3.375h9.75a3.375 3.375 0 0 1 3.375 3.375v1.875M16.5 7.5l-4.5-4.5m0 0L7.5 7.5m4.5-4.5v11.25" /></svg>
+                                            </Button>
+                                        )}
+                                    </div>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+            {documentModal && (
+                <MovementDocumentModal
+                    logEntry={documentModal.log}
+                    docType={documentModal.type}
+                    onClose={() => setDocumentModal(null)}
+                />
+            )}
         </Card>
     );
 };
@@ -1299,11 +1328,13 @@ const AppContent = () => {
         { id: 'warehouses', name: 'Almacenes', icon: ICONS.warehouse },
         { id: 'users', name: 'Usuarios', icon: ICONS.users },
         { id: 'log', name: 'Registro', icon: ICONS.log },
+        { id: 'settings', name: 'Configuración', icon: ICONS.settings },
     ];
 
-    const visibleNavItems = navItems.filter(item => 
-        item.id !== 'users' || currentUser?.role === 'ADMINISTRADOR'
-    );
+    const visibleNavItems = navItems.filter(item => {
+        if (currentUser?.role === 'ADMINISTRADOR') return true;
+        return item.id !== 'users' && item.id !== 'settings';
+    });
 
     const renderView = () => {
         switch (view) {
@@ -1312,6 +1343,7 @@ const AppContent = () => {
             case 'warehouses': return <WarehousesSection />;
             case 'log': return <LogView />;
             case 'users': return currentUser?.role === 'ADMINISTRADOR' ? <UsersView /> : <DashboardView/>;
+            case 'settings': return currentUser?.role === 'ADMINISTRADOR' ? <SettingsView /> : <DashboardView/>;
             default: return <DashboardView />;
         }
     };

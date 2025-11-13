@@ -15,7 +15,7 @@ export const mockProducts: Product[] = [
 ];
 
 export const mockInventory: InventoryItem[] = [
-    { productId: 'p1', warehouseId: 'w1', quantity: 30 },
+    { productId: 'p1', warehouseId: 'w1', quantity: 25 }, // Ajustado de 30 para reflejar la salida
     { productId: 'p1', warehouseId: 'w2', quantity: 12 },
     { productId: 'p2', warehouseId: 'w1', quantity: 8 },
     { productId: 'p3', warehouseId: 'w1', quantity: 80 },
@@ -27,6 +27,18 @@ export const mockInventory: InventoryItem[] = [
 ];
 
 export const mockLogs: LogEntry[] = [
+    { 
+        id: 'l4', 
+        timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), 
+        productName: 'Taladro Inalámbrico 20V',
+        sku: 'TLD-20V-001',
+        warehouseName: 'Almacén Principal',
+        type: 'SALIDA', 
+        quantityChange: -5, 
+        newQuantityInWarehouse: 25,
+        details: 'Venta a cliente #C-2024-01',
+        user: 'Empleado Mostrador'
+    },
     { 
         id: 'l1', 
         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), 

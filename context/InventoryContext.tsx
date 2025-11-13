@@ -1,5 +1,5 @@
 import React, { createContext, useReducer, useContext, Dispatch } from 'react';
-import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess } from '../types';
+import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings } from '../types';
 import { mockProducts, mockLogs, mockWarehouses, mockInventory, mockUsers, mockUserWarehouseAccess } from '../services/mockData';
 
 // Generador simple de UUID para evitar dependencias externas.
@@ -10,6 +10,17 @@ const generateUUID = () => {
   });
 };
 
+const initialAppSettings: AppSettings = {
+    colors: {
+        inStock: 'bg-green-500/20 text-green-400 border-green-500/30',
+        lowStock: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+        outOfStock: 'bg-red-500/20 text-red-400 border-red-500/30',
+    },
+    alerts: {
+        defaultLowStockThreshold: 10,
+    }
+};
+
 interface AppState {
   products: Product[];
   warehouses: Warehouse[];
@@ -18,6 +29,7 @@ interface AppState {
   users: User[];
   userWarehouseAccess: UserWarehouseAccess[];
   currentUser: User | null; // Simula el usuario logueado
+  settings: AppSettings;
 }
 
 const initialState: AppState = {
@@ -28,11 +40,13 @@ const initialState: AppState = {
   users: mockUsers,
   userWarehouseAccess: mockUserWarehouseAccess,
   currentUser: null, // Nadie está logueado al inicio
+  settings: initialAppSettings,
 };
 
 type Action =
   | { type: 'LOGIN'; payload: { user: User } }
   | { type: 'LOGOUT' }
+  | { type: 'UPDATE_SETTINGS'; payload: { settings: AppSettings } }
   | { type: 'ADD_PRODUCT'; payload: { product: Omit<Product, 'id'> } }
   | { type: 'BULK_ADD_PRODUCTS'; payload: { products: Omit<Product, 'id'>[] } }
   | { type: 'UPDATE_PRODUCT'; payload: { product: Product } }
@@ -52,6 +66,8 @@ const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, currentUser: action.payload.user };
     case 'LOGOUT':
       return { ...state, currentUser: null };
+    case 'UPDATE_SETTINGS':
+        return { ...state, settings: action.payload.settings };
 
     case 'ADD_WAREHOUSE': {
       const newWarehouse: Warehouse = {

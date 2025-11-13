@@ -50,4 +50,20 @@ export interface UserWarehouseAccess {
   warehouseId: string;
 }
 
-export type View = 'dashboard' | 'products' | 'warehouses' | 'log' | 'users';
+export type View = 'dashboard' | 'products' | 'warehouses' | 'log' | 'users' | 'settings';
+
+// --- Nuevos Tipos de Configuración ---
+export interface ColorSettings {
+    inStock: string;
+    lowStock: string;
+    outOfStock: string;
+}
+
+export interface AlertSettings {
+    defaultLowStockThreshold: number;
+}
+
+export interface AppSettings {
+    colors: ColorSettings;
+    alerts: AlertSettings;
+}
