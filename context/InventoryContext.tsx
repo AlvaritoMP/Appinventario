@@ -1,6 +1,6 @@
 import React, { createContext, useReducer, useContext, Dispatch } from 'react';
-import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings, CompanyInfo } from '../types';
-import { mockProducts, mockLogs, mockWarehouses, mockInventory, mockUsers, mockUserWarehouseAccess, mockCompanyInfo } from '../services/mockData';
+import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings, CompanyInfo, Supplier, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus } from '../types';
+import { mockProducts, mockLogs, mockWarehouses, mockInventory, mockUsers, mockUserWarehouseAccess, mockCompanyInfo, mockSuppliers, mockPurchaseOrders } from '../services/mockData';
 
 // Generador simple de UUID para evitar dependencias externas.
 const generateUUID = () => {
@@ -31,6 +31,8 @@ interface AppState {
   currentUser: User | null; // Simula el usuario logueado
   settings: AppSettings;
   companyInfo: CompanyInfo;
+  suppliers: Supplier[];
+  purchaseOrders: PurchaseOrder[];
 }
 
 const initialState: AppState = {
@@ -43,6 +45,8 @@ const initialState: AppState = {
   currentUser: null, // Nadie está logueado al inicio
   settings: initialAppSettings,
   companyInfo: mockCompanyInfo,
+  suppliers: mockSuppliers,
+  purchaseOrders: mockPurchaseOrders,
 };
 
 type Action =
@@ -59,7 +63,11 @@ type Action =
   | { type: 'ADD_WAREHOUSE'; payload: { warehouse: Omit<Warehouse, 'id'> } }
   | { type: 'ADD_USER'; payload: { user: Omit<User, 'id'>; warehouseIds: string[] } }
   | { type: 'UPDATE_USER'; payload: { user: User; warehouseIds: string[] } }
-  | { type: 'DELETE_USER'; payload: { userId: string } };
+  | { type: 'DELETE_USER'; payload: { userId: string } }
+  | { type: 'ADD_SUPPLIER'; payload: { supplier: Omit<Supplier, 'id'> } }
+  | { type: 'UPDATE_SUPPLIER'; payload: { supplier: Supplier } }
+  | { type: 'ADD_PURCHASE_ORDER'; payload: { purchaseOrderData: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'total' | 'status'> } }
+  | { type: 'UPDATE_PURCHASE_ORDER'; payload: { purchaseOrderId: string; status: PurchaseOrderStatus; receivedInWarehouseId?: string } };
 
 const reducer = (state: AppState, action: Action): AppState => {
   const currentUser = state.currentUser;
@@ -382,6 +390,90 @@ const reducer = (state: AppState, action: Action): AppState => {
             users,
             userWarehouseAccess,
         };
+    }
+    case 'ADD_SUPPLIER': {
+        const newSupplier: Supplier = { ...action.payload.supplier, id: generateUUID() };
+        return { ...state, suppliers: [...state.suppliers, newSupplier] };
+    }
+    case 'UPDATE_SUPPLIER': {
+        const updatedSuppliers = state.suppliers.map(s => s.id === action.payload.supplier.id ? action.payload.supplier : s);
+        return { ...state, suppliers: updatedSuppliers };
+    }
+    case 'ADD_PURCHASE_ORDER': {
+      if (!currentUser) return state;
+      const { purchaseOrderData } = action.payload;
+      const total = purchaseOrderData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+      const newPurchaseOrder: PurchaseOrder = {
+          ...purchaseOrderData,
+          id: generateUUID(),
+          orderNumber: `OC-${Date.now().toString().slice(-6)}`,
+          status: 'BORRADOR',
+          total: total,
+          solicitante: currentUser.name,
+      };
+      return { ...state, purchaseOrders: [newPurchaseOrder, ...state.purchaseOrders] };
+    }
+    case 'UPDATE_PURCHASE_ORDER': {
+      if (!currentUser) return state;
+      const { purchaseOrderId, status, receivedInWarehouseId } = action.payload;
+
+      if (status !== 'RECIBIDA' || !receivedInWarehouseId) {
+          const updatedPurchaseOrders = state.purchaseOrders.map(p =>
+              p.id === purchaseOrderId ? { ...p, status } : p
+          );
+          return { ...state, purchaseOrders: updatedPurchaseOrders };
+      }
+
+      const po = state.purchaseOrders.find(p => p.id === purchaseOrderId);
+      const warehouse = state.warehouses.find(w => w.id === receivedInWarehouseId);
+      if (!po || !warehouse || po.status !== 'EMITIDA') return state;
+
+      let updatedInventory = [...state.inventory];
+      const newLogs: LogEntry[] = [];
+      const timestamp = new Date().toISOString();
+
+      po.items.forEach(item => {
+          const product = state.products.find(p => p.id === item.productId);
+          if (!product) return;
+
+          const inventoryItemIndex = updatedInventory.findIndex(
+              i => i.productId === item.productId && i.warehouseId === receivedInWarehouseId
+          );
+
+          let newQuantityInWarehouse = 0;
+          if (inventoryItemIndex > -1) {
+              const currentItem = updatedInventory[inventoryItemIndex];
+              newQuantityInWarehouse = currentItem.quantity + item.quantity;
+              updatedInventory[inventoryItemIndex] = { ...currentItem, quantity: newQuantityInWarehouse };
+          } else {
+              newQuantityInWarehouse = item.quantity;
+              updatedInventory.push({ productId: item.productId, warehouseId: receivedInWarehouseId, quantity: newQuantityInWarehouse });
+          }
+
+          newLogs.push({
+              id: generateUUID(),
+              timestamp,
+              productName: product.name,
+              sku: product.sku,
+              warehouseName: warehouse.name,
+              type: 'ENTRADA',
+              quantityChange: item.quantity,
+              newQuantityInWarehouse,
+              details: `Recepción de Orden de Compra #${po.orderNumber}`,
+              user: currentUser.name,
+          });
+      });
+
+      const updatedPurchaseOrders = state.purchaseOrders.map(p =>
+          p.id === purchaseOrderId ? { ...p, status: 'RECIBIDA' as PurchaseOrderStatus } : p
+      );
+
+      return {
+          ...state,
+          inventory: updatedInventory,
+          purchaseOrders: updatedPurchaseOrders,
+          logs: [...newLogs, ...state.logs],
+      };
     }
     default:
       return state;

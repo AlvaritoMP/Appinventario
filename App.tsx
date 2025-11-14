@@ -5,6 +5,8 @@ import { ICONS } from './constants';
 import { SettingsView } from './components/SettingsView';
 import { MovementDocumentModal } from './components/MovementDocumentModal';
 import { BulkTransferModal } from './components/BulkTransferModal';
+import { SuppliersView } from './components/SuppliersView';
+import { PurchaseOrdersView } from './components/PurchaseOrdersView';
 
 
 declare global {
@@ -99,7 +101,7 @@ const Textarea = ({ label, ...props }: React.TextareaHTMLAttributes<HTMLTextArea
 );
 
 // Vistas de la Aplicación
-const DashboardView = () => {
+const DashboardView = ({ onGenerateSuggestedPO }: { onGenerateSuggestedPO: (products: Product[]) => void }) => {
     const { products, inventory, warehouses, currentUser } = useInventoryState();
 
     const productTotals = useMemo(() => {
@@ -225,16 +227,24 @@ const DashboardView = () => {
                 </Card>
                 <Card className="lg:col-span-2">
                     <h3 className="text-lg font-semibold text-white mb-4">Alertas de Inventario</h3>
-                     {lowStockItems.length > 0 ? (
-                        <ul className="space-y-2">
-                            {lowStockItems.map(p => (
-                                <li key={p.id} className="flex justify-between items-center bg-yellow-900/30 p-3 rounded-md">
-                                    <span className="text-gray-300">{p.name} <span className="text-xs text-gray-500">({p.sku})</span></span>
-                                    <span className="font-bold text-yellow-400">{p.totalQuantity} unidades</span>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : <p className="text-gray-400">No hay productos con stock bajo.</p>}
+                     {lowStockItems.length > 0 && (
+                        <div className="mb-4">
+                            <h4 className="text-md font-semibold text-yellow-400 mb-2">Productos con Stock Bajo</h4>
+                            <ul className="space-y-2">
+                                {lowStockItems.slice(0, 3).map(p => (
+                                    <li key={p.id} className="flex justify-between items-center bg-yellow-900/30 p-3 rounded-md">
+                                        <span className="text-gray-300">{p.name} <span className="text-xs text-gray-500">({p.sku})</span></span>
+                                        <span className="font-bold text-yellow-400">{p.totalQuantity} unidades</span>
+                                    </li>
+                                ))}
+                            </ul>
+                            <Button 
+                                onClick={() => onGenerateSuggestedPO(lowStockItems)}
+                                className="w-full mt-4 bg-yellow-600 hover:bg-yellow-700">
+                                Generar OC Sugerida
+                            </Button>
+                        </div>
+                     )}
                      {outOfStockItems.length > 0 && <div className="mt-4 pt-4 border-t border-gray-700">
                          <h4 className="text-md font-semibold text-red-400 mb-2">Agotados</h4>
                          <ul className="space-y-2">
@@ -246,6 +256,7 @@ const DashboardView = () => {
                             ))}
                         </ul>
                     </div>}
+                    {lowStockItems.length === 0 && outOfStockItems.length === 0 && <p className="text-gray-400">No hay alertas de inventario.</p>}
                 </Card>
             </div>
         </div>
@@ -1218,6 +1229,7 @@ const App = () => {
     const { currentUser } = useInventoryState();
     const [view, setView] = useState<View>('dashboard');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [prefillPO, setPrefillPO] = useState<Product[] | null>(null);
     const dispatch = useInventoryDispatch();
 
     useEffect(() => {
@@ -1240,6 +1252,8 @@ const App = () => {
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: ICONS.dashboard, roles: ['ADMINISTRADOR', 'GERENTE', 'EMPLEADO'] },
         { id: 'products', label: 'Productos', icon: ICONS.product, roles: ['ADMINISTRADOR', 'GERENTE', 'EMPLEADO'] },
+        { id: 'suppliers', label: 'Proveedores', icon: ICONS.users, roles: ['ADMINISTRADOR', 'GERENTE'] },
+        { id: 'purchaseOrders', label: 'Órdenes de Compra', icon: ICONS.document, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'warehouses', label: 'Almacenes', icon: ICONS.warehouse, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'log', label: 'Registro', icon: ICONS.log, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'users', label: 'Usuarios', icon: ICONS.users, roles: ['ADMINISTRADOR'] },
@@ -1248,15 +1262,22 @@ const App = () => {
     
     const permittedNavItems = navItems.filter(item => item.roles.includes(currentUser.role));
 
+    const handleGenerateSuggestedPO = (products: Product[]) => {
+        setPrefillPO(products);
+        setView('purchaseOrders');
+    };
+
     const renderView = () => {
         switch (view) {
-            case 'dashboard': return <DashboardView />;
+            case 'dashboard': return <DashboardView onGenerateSuggestedPO={handleGenerateSuggestedPO} />;
             case 'products': return <ProductsView />;
+            case 'suppliers': return <SuppliersView />;
+            case 'purchaseOrders': return <PurchaseOrdersView prefillItems={prefillPO} onPrefillConsumed={() => setPrefillPO(null)} />;
             case 'warehouses': return <WarehousesView />;
             case 'log': return <LogView />;
             case 'users': return <UsersView />;
             case 'settings': return <SettingsView />;
-            default: return <DashboardView />;
+            default: return <DashboardView onGenerateSuggestedPO={handleGenerateSuggestedPO} />;
         }
     };
 

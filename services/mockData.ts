@@ -1,4 +1,4 @@
-import { Product, LogEntry, Warehouse, InventoryItem, User, UserRole, UserWarehouseAccess, CompanyInfo } from '../types';
+import { Product, LogEntry, Warehouse, InventoryItem, User, UserRole, UserWarehouseAccess, CompanyInfo, Supplier, PurchaseOrder } from '../types';
 
 export const mockCompanyInfo: CompanyInfo = {
     name: "MULTIDISTRIBUCIONES",
@@ -102,3 +102,26 @@ export const mockUserWarehouseAccess: UserWarehouseAccess[] = [
   // Empleado (u3) tiene acceso solo al Punto de Venta Central
   { userId: 'u3', warehouseId: 'w3' },
 ];
+
+export const mockSuppliers: Supplier[] = [
+    {
+        id: 'sup1',
+        name: 'OPALO PERU SAC',
+        ruc: '20511627061',
+        address: 'Jirón Camino Real, 1715, Of. 203, 15063, Santiago de Surco, Peru',
+        contactPerson: 'Aminano',
+        contactEmail: 'aminano@opaloperu.com',
+        contactPhone: '989112209'
+    },
+    {
+        id: 'sup2',
+        name: 'Ferretería Industrial Max',
+        ruc: '20123456789',
+        address: 'Av. Industrial 456, Parque Industrial, Lima, Peru',
+        contactPerson: 'Carlos Ramirez',
+        contactEmail: 'carlos.r@ferremax.com',
+        contactPhone: '987654321'
+    }
+];
+
+export const mockPurchaseOrders: PurchaseOrder[] = [];

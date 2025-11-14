@@ -52,7 +52,7 @@ export interface UserWarehouseAccess {
   warehouseId: string;
 }
 
-export type View = 'dashboard' | 'products' | 'warehouses' | 'log' | 'users' | 'settings';
+export type View = 'dashboard' | 'products' | 'warehouses' | 'log' | 'users' | 'settings' | 'suppliers' | 'purchaseOrders';
 
 // --- Tipos de Configuración ---
 export interface ColorSettings {
@@ -77,4 +77,37 @@ export interface CompanyInfo {
     ruc: string;
     fiscalAddress: string;
     branchAddress?: string;
+}
+
+// --- Tipos para Módulo de Compras ---
+export type PurchaseOrderStatus = 'BORRADOR' | 'EMITIDA' | 'RECIBIDA' | 'CANCELADA';
+
+export interface Supplier {
+    id: string;
+    name: string;
+    ruc: string;
+    address: string;
+    contactPerson: string;
+    contactEmail: string;
+    contactPhone: string;
+}
+
+export interface PurchaseOrderItem {
+    productId: string;
+    productName: string;
+    sku: string;
+    quantity: number;
+    price: number;
+}
+
+export interface PurchaseOrder {
+    id: string;
+    orderNumber: string;
+    supplierId: string;
+    issueDate: string;
+    deliveryDate: string;
+    status: PurchaseOrderStatus;
+    items: PurchaseOrderItem[];
+    solicitante: string;
+    total: number;
 }
