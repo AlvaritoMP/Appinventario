@@ -7,6 +7,7 @@ import { MovementDocumentModal } from './components/MovementDocumentModal';
 import { BulkTransferModal } from './components/BulkTransferModal';
 import { SuppliersView } from './components/SuppliersView';
 import { PurchaseOrdersView } from './components/PurchaseOrdersView';
+import { PurchaseCalendarView } from './components/PurchaseCalendarView';
 
 
 declare global {
@@ -1254,6 +1255,7 @@ const App = () => {
         { id: 'products', label: 'Productos', icon: ICONS.product, roles: ['ADMINISTRADOR', 'GERENTE', 'EMPLEADO'] },
         { id: 'suppliers', label: 'Proveedores', icon: ICONS.users, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'purchaseOrders', label: 'Órdenes de Compra', icon: ICONS.document, roles: ['ADMINISTRADOR', 'GERENTE'] },
+        { id: 'purchaseCalendar', label: 'Calendario', icon: ICONS.calendar, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'warehouses', label: 'Almacenes', icon: ICONS.warehouse, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'log', label: 'Registro', icon: ICONS.log, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'users', label: 'Usuarios', icon: ICONS.users, roles: ['ADMINISTRADOR'] },
@@ -1273,6 +1275,7 @@ const App = () => {
             case 'products': return <ProductsView />;
             case 'suppliers': return <SuppliersView />;
             case 'purchaseOrders': return <PurchaseOrdersView prefillItems={prefillPO} onPrefillConsumed={() => setPrefillPO(null)} />;
+            case 'purchaseCalendar': return <PurchaseCalendarView />;
             case 'warehouses': return <WarehousesView />;
             case 'log': return <LogView />;
             case 'users': return <UsersView />;

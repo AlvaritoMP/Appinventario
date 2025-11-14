@@ -17,58 +17,17 @@ const Button = ({ children, onClick, className = 'bg-blue-600 hover:bg-blue-700'
     {children}
   </button>
 );
-const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }: { isOpen: boolean, onClose: () => void, title: string, children?: React.ReactNode, maxWidth?: string }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4" onClick={onClose}>
-      <div className={`bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full ${maxWidth} mx-auto`} onClick={e => e.stopPropagation()}>
-        <div className="p-5 border-b border-gray-700 flex justify-between items-center">
-          <h3 className="text-xl font-bold text-white">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">{ICONS.close}</button>
-        </div>
-        <div className="p-6 max-h-[70vh] overflow-y-auto">{children}</div>
-      </div>
-    </div>
-  );
-};
-
-
-const ReceiveOrderModal = ({ po, onClose, onConfirm }: { po: PurchaseOrder, onClose: () => void, onConfirm: (poId: string, warehouseId: string) => void }) => {
-    const { warehouses } = useInventoryState();
-    const [warehouseId, setWarehouseId] = useState('');
-
-    return (
-        <Modal isOpen={true} onClose={onClose} title={`Recibir Orden de Compra #${po.orderNumber}`}>
-            <div className="space-y-4">
-                <p>Seleccione el almacén de destino para los productos de esta orden.</p>
-                <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Almacén de Destino</label>
-                    <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
-                        <option value="">Seleccione un almacén...</option>
-                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                </div>
-                <div className="flex justify-end pt-4 gap-3">
-                    <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cancelar</Button>
-                    <Button onClick={() => onConfirm(po.id, warehouseId)} disabled={!warehouseId}>Confirmar Recepción</Button>
-                </div>
-            </div>
-        </Modal>
-    );
-};
-
 
 export const PurchaseOrdersView = ({ prefillItems, onPrefillConsumed }: { prefillItems: Product[] | null, onPrefillConsumed: () => void }) => {
     const { purchaseOrders, suppliers } = useInventoryState();
     const dispatch = useInventoryDispatch();
 
-    const [modal, setModal] = useState<'add' | 'view' | 'receive' | null>(null);
+    const [modal, setModal] = useState<'add' | 'view' | null>(null);
     const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
 
     useEffect(() => {
         if(prefillItems && prefillItems.length > 0) {
             setModal('add');
-            // prefillItems will be passed down to the form modal
         }
     }, [prefillItems]);
 
@@ -80,9 +39,15 @@ export const PurchaseOrdersView = ({ prefillItems, onPrefillConsumed }: { prefil
         }
     };
     
-    const handleStatusChange = (poId: string, status: PurchaseOrderStatus, warehouseId?: string) => {
-        dispatch({ type: 'UPDATE_PURCHASE_ORDER', payload: { purchaseOrderId: poId, status, receivedInWarehouseId: warehouseId } });
+    const handleStatusChange = (poId: string, status: PurchaseOrderStatus) => {
+        dispatch({ type: 'UPDATE_PURCHASE_ORDER', payload: { purchaseOrderId: poId, status } });
         handleCloseModal();
+    };
+
+    const handleReceiveOrder = (po: PurchaseOrder) => {
+        if(window.confirm(`¿Confirma la recepción de todos los productos de la orden #${po.orderNumber} en el almacén "${po.destinationWarehouseId}"? Esta acción actualizará el inventario.`)){
+            handleStatusChange(po.id, 'RECIBIDA');
+        }
     };
 
     const getStatusChip = (status: PurchaseOrderStatus) => {
@@ -131,7 +96,7 @@ export const PurchaseOrdersView = ({ prefillItems, onPrefillConsumed }: { prefil
                                             <div className="flex justify-center items-center gap-2">
                                                 <Button onClick={() => { setSelectedPO(po); setModal('view'); }} title="Ver Orden" className="bg-gray-700 hover:bg-gray-600 p-2">{ICONS.document}</Button>
                                                 {po.status === 'BORRADOR' && <Button onClick={() => handleStatusChange(po.id, 'EMITIDA')} title="Emitir Orden" className="bg-green-700 hover:bg-green-600 p-2">Emitir</Button>}
-                                                {po.status === 'EMITIDA' && <Button onClick={() => { setSelectedPO(po); setModal('receive'); }} title="Recibir Mercancía" className="bg-teal-700 hover:bg-teal-600 p-2">Recibir</Button>}
+                                                {po.status === 'EMITIDA' && <Button onClick={() => handleReceiveOrder(po)} title="Recibir Mercancía" className="bg-teal-700 hover:bg-teal-600 p-2">Recibir</Button>}
                                             </div>
                                         </td>
                                     </tr>
@@ -145,7 +110,6 @@ export const PurchaseOrdersView = ({ prefillItems, onPrefillConsumed }: { prefil
 
             {modal === 'add' && <PurchaseOrderFormModal onClose={handleCloseModal} prefillItems={prefillItems || undefined}/>}
             {modal === 'view' && selectedPO && <PurchaseOrderDocumentModal po={selectedPO} onClose={handleCloseModal} />}
-            {modal === 'receive' && selectedPO && <ReceiveOrderModal po={selectedPO} onClose={handleCloseModal} onConfirm={(poId, whId) => handleStatusChange(poId, 'RECIBIDA', whId)} />}
         </div>
     );
 };

@@ -33,11 +33,12 @@ const Input = ({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> 
 
 
 export const PurchaseOrderFormModal = ({ onClose, prefillItems }: { onClose: () => void, prefillItems?: Product[] }) => {
-    const { suppliers, products, myCompanies } = useInventoryState();
+    const { suppliers, products, myCompanies, warehouses } = useInventoryState();
     const dispatch = useInventoryDispatch();
 
     const [supplierId, setSupplierId] = useState('');
     const [issuingCompanyId, setIssuingCompanyId] = useState(myCompanies[0]?.id || '');
+    const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
     const [deliveryDate, setDeliveryDate] = useState('');
     const [items, setItems] = useState<PurchaseOrderItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -90,8 +91,8 @@ export const PurchaseOrderFormModal = ({ onClose, prefillItems }: { onClose: () 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!supplierId || !issuingCompanyId || items.length === 0) {
-            alert("Por favor, seleccione una empresa emisora, un proveedor y añada al menos un producto.");
+        if (!supplierId || !issuingCompanyId || !destinationWarehouseId || items.length === 0) {
+            alert("Por favor, complete todos los campos requeridos (empresa, proveedor, almacén) y añada al menos un producto.");
             return;
         }
 
@@ -101,6 +102,7 @@ export const PurchaseOrderFormModal = ({ onClose, prefillItems }: { onClose: () 
                 purchaseOrderData: {
                     supplierId,
                     issuingCompanyId,
+                    destinationWarehouseId,
                     issueDate: new Date().toISOString(),
                     deliveryDate: deliveryDate || new Date().toISOString(),
                     items
@@ -113,22 +115,29 @@ export const PurchaseOrderFormModal = ({ onClose, prefillItems }: { onClose: () 
     return (
         <Modal isOpen={true} onClose={onClose} title="Crear Orden de Compra">
             <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                     <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                     <div className="lg:col-span-1">
                         <label className="block text-sm font-medium text-gray-400 mb-1">Empresa Emisora</label>
                         <select value={issuingCompanyId} onChange={e => setIssuingCompanyId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
-                            <option value="">Seleccione una empresa...</option>
+                            <option value="">Seleccione...</option>
                             {myCompanies.map(c => <option key={c.id} value={c.id}>{c.profileName}</option>)}
                         </select>
                     </div>
-                    <div>
+                    <div className="lg:col-span-1">
                         <label className="block text-sm font-medium text-gray-400 mb-1">Proveedor</label>
                         <select value={supplierId} onChange={e => setSupplierId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
-                            <option value="">Seleccione un proveedor...</option>
+                            <option value="">Seleccione...</option>
                             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
-                    <Input label="Fecha de Entrega Esperada" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
+                     <div className="lg:col-span-1">
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Almacén de Destino</label>
+                        <select value={destinationWarehouseId} onChange={e => setDestinationWarehouseId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
+                            <option value="">Seleccione...</option>
+                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        </select>
+                    </div>
+                    <Input label="Fecha de Entrega" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
                 </div>
 
                 <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 space-y-4">

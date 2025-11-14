@@ -219,6 +219,47 @@ export const SettingsView = () => {
                     <CompanyInfoManager />
 
                     <div className="border-t border-gray-700 pt-8">
+                        <h3 className="text-lg font-semibold text-white mb-4">Numeración de Documentos</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Input
+                                    label="Prefijo de Orden de Compra"
+                                    type="text"
+                                    value={localSettings.purchaseOrderSettings.prefix}
+                                    onChange={e => {
+                                        const value = e.target.value;
+                                        setLocalSettings(s => ({ ...s, purchaseOrderSettings: { ...s.purchaseOrderSettings, prefix: value } }))
+                                    }}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Ej: OC-MIEMPRESA-2024-</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Siguiente Número</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        value={String(localSettings.purchaseOrderSettings.nextNumber).padStart(6, '0')}
+                                        className="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2"
+                                    />
+                                     <Button 
+                                        onClick={() => {
+                                            if (window.confirm('¿Seguro que desea reiniciar el contador a 1?')) {
+                                                setLocalSettings(s => ({ ...s, purchaseOrderSettings: { ...s.purchaseOrderSettings, nextNumber: 1 } }))
+                                            }
+                                        }}
+                                        className="bg-yellow-700 hover:bg-yellow-600"
+                                        title="Reiniciar contador"
+                                     >
+                                        Reiniciar
+                                     </Button>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">El siguiente número se incrementará automáticamente.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-gray-700 pt-8">
                         <h3 className="text-lg font-semibold text-white mb-4">Paleta de Colores de Alertas</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {colorPalettes.map(palette => (

@@ -52,7 +52,7 @@ export interface UserWarehouseAccess {
   warehouseId: string;
 }
 
-export type View = 'dashboard' | 'products' | 'warehouses' | 'log' | 'users' | 'settings' | 'suppliers' | 'purchaseOrders';
+export type View = 'dashboard' | 'products' | 'warehouses' | 'log' | 'users' | 'settings' | 'suppliers' | 'purchaseOrders' | 'purchaseCalendar';
 
 // --- Tipos de Configuración ---
 export interface ColorSettings {
@@ -65,9 +65,15 @@ export interface AlertSettings {
     defaultLowStockThreshold: number;
 }
 
+export interface PurchaseOrderSettings {
+    prefix: string;
+    nextNumber: number;
+}
+
 export interface AppSettings {
     colors: ColorSettings;
     alerts: AlertSettings;
+    purchaseOrderSettings: PurchaseOrderSettings;
 }
 
 // --- Tipos para Información de la Empresa (Flexible) ---
@@ -108,11 +114,29 @@ export interface PurchaseOrder {
     id: string;
     orderNumber: string;
     supplierId: string;
-    issuingCompanyId: string; // Nuevo: ID de la empresa que emite la OC
+    issuingCompanyId: string; // ID de la empresa que emite la OC
+    destinationWarehouseId: string; // Nuevo: ID del almacén de destino
     issueDate: string;
     deliveryDate: string;
     status: PurchaseOrderStatus;
     items: PurchaseOrderItem[];
     solicitante: string;
     total: number;
+}
+
+export interface ScheduledPurchaseItem {
+    productId: string;
+    productName: string;
+    sku: string;
+    quantity: number;
+}
+
+export interface ScheduledPurchase {
+    id: string;
+    date: string; // YYYY-MM-DD
+    title: string;
+    supplierId?: string;
+    notes: string;
+    items: ScheduledPurchaseItem[];
+    createdBy: string;
 }

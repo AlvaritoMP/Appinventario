@@ -1,5 +1,5 @@
 import React, { createContext, useReducer, useContext, Dispatch } from 'react';
-import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings, MyCompany, Supplier, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus } from '../types';
+import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings, MyCompany, Supplier, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus, ScheduledPurchase } from '../types';
 import { mockProducts, mockLogs, mockWarehouses, mockInventory, mockUsers, mockUserWarehouseAccess, mockMyCompanies, mockSuppliers, mockPurchaseOrders } from '../services/mockData';
 
 // Generador simple de UUID para evitar dependencias externas.
@@ -18,6 +18,10 @@ const initialAppSettings: AppSettings = {
     },
     alerts: {
         defaultLowStockThreshold: 10,
+    },
+    purchaseOrderSettings: {
+        prefix: 'OC-2024-',
+        nextNumber: 1,
     }
 };
 
@@ -33,6 +37,7 @@ interface AppState {
   myCompanies: MyCompany[];
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];
+  scheduledPurchases: ScheduledPurchase[];
 }
 
 const initialState: AppState = {
@@ -47,6 +52,7 @@ const initialState: AppState = {
   myCompanies: mockMyCompanies,
   suppliers: mockSuppliers,
   purchaseOrders: mockPurchaseOrders,
+  scheduledPurchases: [],
 };
 
 type Action =
@@ -70,7 +76,10 @@ type Action =
   | { type: 'ADD_SUPPLIER'; payload: { supplier: Omit<Supplier, 'id'> } }
   | { type: 'UPDATE_SUPPLIER'; payload: { supplier: Supplier } }
   | { type: 'ADD_PURCHASE_ORDER'; payload: { purchaseOrderData: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'total' | 'status'> } }
-  | { type: 'UPDATE_PURCHASE_ORDER'; payload: { purchaseOrderId: string; status: PurchaseOrderStatus; receivedInWarehouseId?: string } };
+  | { type: 'UPDATE_PURCHASE_ORDER'; payload: { purchaseOrderId: string; status: PurchaseOrderStatus } }
+  | { type: 'ADD_SCHEDULED_PURCHASE'; payload: { purchase: Omit<ScheduledPurchase, 'id'> } }
+  | { type: 'UPDATE_SCHEDULED_PURCHASE'; payload: { purchase: ScheduledPurchase } }
+  | { type: 'DELETE_SCHEDULED_PURCHASE'; payload: { purchaseId: string } };
 
 const reducer = (state: AppState, action: Action): AppState => {
   const currentUser = state.currentUser;
@@ -420,31 +429,49 @@ const reducer = (state: AppState, action: Action): AppState => {
     case 'ADD_PURCHASE_ORDER': {
       if (!currentUser) return state;
       const { purchaseOrderData } = action.payload;
+      const { prefix, nextNumber } = state.settings.purchaseOrderSettings;
+      const orderNumber = `${prefix}${String(nextNumber).padStart(6, '0')}`;
+      
       const total = purchaseOrderData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
       const newPurchaseOrder: PurchaseOrder = {
           ...purchaseOrderData,
           id: generateUUID(),
-          orderNumber: `OC-${Date.now().toString().slice(-6)}`,
+          orderNumber,
           status: 'BORRADOR',
           total: total,
           solicitante: currentUser.name,
       };
-      return { ...state, purchaseOrders: [newPurchaseOrder, ...state.purchaseOrders] };
+      
+      const updatedSettings = {
+        ...state.settings,
+        purchaseOrderSettings: {
+            ...state.settings.purchaseOrderSettings,
+            nextNumber: nextNumber + 1,
+        }
+      };
+
+      return { 
+          ...state, 
+          purchaseOrders: [newPurchaseOrder, ...state.purchaseOrders],
+          settings: updatedSettings
+      };
     }
     case 'UPDATE_PURCHASE_ORDER': {
       if (!currentUser) return state;
-      const { purchaseOrderId, status, receivedInWarehouseId } = action.payload;
+      const { purchaseOrderId, status } = action.payload;
+      const po = state.purchaseOrders.find(p => p.id === purchaseOrderId);
+      if (!po) return state;
 
-      if (status !== 'RECIBIDA' || !receivedInWarehouseId) {
+      if (status !== 'RECIBIDA') {
           const updatedPurchaseOrders = state.purchaseOrders.map(p =>
               p.id === purchaseOrderId ? { ...p, status } : p
           );
           return { ...state, purchaseOrders: updatedPurchaseOrders };
       }
 
-      const po = state.purchaseOrders.find(p => p.id === purchaseOrderId);
-      const warehouse = state.warehouses.find(w => w.id === receivedInWarehouseId);
-      if (!po || !warehouse || po.status !== 'EMITIDA') return state;
+      // Lógica para recibir la mercancía
+      const warehouse = state.warehouses.find(w => w.id === po.destinationWarehouseId);
+      if (!warehouse || po.status !== 'EMITIDA') return state;
 
       let updatedInventory = [...state.inventory];
       const newLogs: LogEntry[] = [];
@@ -455,7 +482,7 @@ const reducer = (state: AppState, action: Action): AppState => {
           if (!product) return;
 
           const inventoryItemIndex = updatedInventory.findIndex(
-              i => i.productId === item.productId && i.warehouseId === receivedInWarehouseId
+              i => i.productId === item.productId && i.warehouseId === po.destinationWarehouseId
           );
 
           let newQuantityInWarehouse = 0;
@@ -465,7 +492,7 @@ const reducer = (state: AppState, action: Action): AppState => {
               updatedInventory[inventoryItemIndex] = { ...currentItem, quantity: newQuantityInWarehouse };
           } else {
               newQuantityInWarehouse = item.quantity;
-              updatedInventory.push({ productId: item.productId, warehouseId: receivedInWarehouseId, quantity: newQuantityInWarehouse });
+              updatedInventory.push({ productId: item.productId, warehouseId: po.destinationWarehouseId, quantity: newQuantityInWarehouse });
           }
 
           newLogs.push({
@@ -492,6 +519,18 @@ const reducer = (state: AppState, action: Action): AppState => {
           purchaseOrders: updatedPurchaseOrders,
           logs: [...newLogs, ...state.logs],
       };
+    }
+    case 'ADD_SCHEDULED_PURCHASE': {
+        const newPurchase: ScheduledPurchase = { ...action.payload.purchase, id: generateUUID() };
+        return { ...state, scheduledPurchases: [...state.scheduledPurchases, newPurchase] };
+    }
+    case 'UPDATE_SCHEDULED_PURCHASE': {
+        const updatedPurchases = state.scheduledPurchases.map(p => p.id === action.payload.purchase.id ? action.payload.purchase : p);
+        return { ...state, scheduledPurchases: updatedPurchases };
+    }
+    case 'DELETE_SCHEDULED_PURCHASE': {
+        const filteredPurchases = state.scheduledPurchases.filter(p => p.id !== action.payload.purchaseId);
+        return { ...state, scheduledPurchases: filteredPurchases };
     }
     default:
       return state;
