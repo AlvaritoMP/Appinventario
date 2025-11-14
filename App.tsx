@@ -925,6 +925,73 @@ const LogView = () => {
     );
 };
 
+const WarehouseFormModal = ({ onClose, onSave }: { onClose: () => void, onSave: (warehouse: Omit<Warehouse, 'id'>) => void }) => {
+    const [name, setName] = useState('');
+    const [location, setLocation] = useState('');
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave({ name, location });
+    };
+
+    return (
+        <Modal isOpen={true} onClose={onClose} title="Añadir Nuevo Almacén">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <Input label="Nombre del Almacén" value={name} onChange={e => setName(e.target.value)} required />
+                <Input label="Ubicación" value={location} onChange={e => setLocation(e.target.value)} required />
+                <div className="flex justify-end pt-4 gap-3">
+                    <Button onClick={onClose} className="bg-gray-600 hover:bg-gray-700">Cancelar</Button>
+                    <Button type="submit">Guardar Almacén</Button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
+
+const WarehousesView = () => {
+    const { warehouses } = useInventoryState();
+    const dispatch = useInventoryDispatch();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleSaveWarehouse = (warehouse: Omit<Warehouse, 'id'>) => {
+        dispatch({ type: 'ADD_WAREHOUSE', payload: { warehouse } });
+        setIsModalOpen(false);
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-white">Gestión de Almacenes</h1>
+                <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                    {ICONS.plus}
+                    Añadir Almacén
+                </Button>
+            </div>
+            <Card>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="border-b border-gray-700 text-sm text-gray-400">
+                            <tr>
+                                <th className="p-4">Nombre</th>
+                                <th className="p-4">Ubicación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {warehouses.map(warehouse => (
+                                <tr key={warehouse.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                                    <td className="p-4 font-semibold text-white">{warehouse.name}</td>
+                                    <td className="p-4 text-gray-400">{warehouse.location}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+            {isModalOpen && <WarehouseFormModal onClose={() => setIsModalOpen(false)} onSave={handleSaveWarehouse} />}
+        </div>
+    );
+};
+
 const UsersView = () => {
     const { users, userWarehouseAccess, warehouses } = useInventoryState();
     const dispatch = useInventoryDispatch();
@@ -1173,6 +1240,7 @@ const App = () => {
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: ICONS.dashboard, roles: ['ADMINISTRADOR', 'GERENTE', 'EMPLEADO'] },
         { id: 'products', label: 'Productos', icon: ICONS.product, roles: ['ADMINISTRADOR', 'GERENTE', 'EMPLEADO'] },
+        { id: 'warehouses', label: 'Almacenes', icon: ICONS.warehouse, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'log', label: 'Registro', icon: ICONS.log, roles: ['ADMINISTRADOR', 'GERENTE'] },
         { id: 'users', label: 'Usuarios', icon: ICONS.users, roles: ['ADMINISTRADOR'] },
         { id: 'settings', label: 'Configuración', icon: ICONS.settings, roles: ['ADMINISTRADOR'] },
@@ -1184,6 +1252,7 @@ const App = () => {
         switch (view) {
             case 'dashboard': return <DashboardView />;
             case 'products': return <ProductsView />;
+            case 'warehouses': return <WarehousesView />;
             case 'log': return <LogView />;
             case 'users': return <UsersView />;
             case 'settings': return <SettingsView />;
