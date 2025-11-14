@@ -1,6 +1,6 @@
 import React, { createContext, useReducer, useContext, Dispatch } from 'react';
-import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings, CompanyInfo, Supplier, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus } from '../types';
-import { mockProducts, mockLogs, mockWarehouses, mockInventory, mockUsers, mockUserWarehouseAccess, mockCompanyInfo, mockSuppliers, mockPurchaseOrders } from '../services/mockData';
+import { Product, LogEntry, LogType, Warehouse, InventoryItem, User, UserWarehouseAccess, AppSettings, MyCompany, Supplier, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus } from '../types';
+import { mockProducts, mockLogs, mockWarehouses, mockInventory, mockUsers, mockUserWarehouseAccess, mockMyCompanies, mockSuppliers, mockPurchaseOrders } from '../services/mockData';
 
 // Generador simple de UUID para evitar dependencias externas.
 const generateUUID = () => {
@@ -30,7 +30,7 @@ interface AppState {
   userWarehouseAccess: UserWarehouseAccess[];
   currentUser: User | null; // Simula el usuario logueado
   settings: AppSettings;
-  companyInfo: CompanyInfo;
+  myCompanies: MyCompany[];
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];
 }
@@ -44,7 +44,7 @@ const initialState: AppState = {
   userWarehouseAccess: mockUserWarehouseAccess,
   currentUser: null, // Nadie está logueado al inicio
   settings: initialAppSettings,
-  companyInfo: mockCompanyInfo,
+  myCompanies: mockMyCompanies,
   suppliers: mockSuppliers,
   purchaseOrders: mockPurchaseOrders,
 };
@@ -53,6 +53,9 @@ type Action =
   | { type: 'LOGIN'; payload: { user: User } }
   | { type: 'LOGOUT' }
   | { type: 'UPDATE_SETTINGS'; payload: { settings: AppSettings } }
+  | { type: 'ADD_MY_COMPANY'; payload: { company: Omit<MyCompany, 'id'> } }
+  | { type: 'UPDATE_MY_COMPANY'; payload: { company: MyCompany } }
+  | { type: 'DELETE_MY_COMPANY'; payload: { companyId: string } }
   | { type: 'ADD_PRODUCT'; payload: { product: Omit<Product, 'id'> } }
   | { type: 'BULK_ADD_PRODUCTS'; payload: { products: Omit<Product, 'id'>[] } }
   | { type: 'UPDATE_PRODUCT'; payload: { product: Product } }
@@ -79,6 +82,21 @@ const reducer = (state: AppState, action: Action): AppState => {
       return { ...state, currentUser: null };
     case 'UPDATE_SETTINGS':
         return { ...state, settings: action.payload.settings };
+
+    case 'ADD_MY_COMPANY': {
+      const newCompany: MyCompany = { ...action.payload.company, id: generateUUID() };
+      return { ...state, myCompanies: [...state.myCompanies, newCompany] };
+    }
+    case 'UPDATE_MY_COMPANY': {
+      const updatedCompanies = state.myCompanies.map(c => c.id === action.payload.company.id ? action.payload.company : c);
+      return { ...state, myCompanies: updatedCompanies };
+    }
+    case 'DELETE_MY_COMPANY': {
+      // Evitar eliminar la última empresa
+      if (state.myCompanies.length <= 1) return state;
+      const filteredCompanies = state.myCompanies.filter(c => c.id !== action.payload.companyId);
+      return { ...state, myCompanies: filteredCompanies };
+    }
 
     case 'ADD_WAREHOUSE': {
       const newWarehouse: Warehouse = {

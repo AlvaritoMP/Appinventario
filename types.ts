@@ -70,14 +70,18 @@ export interface AppSettings {
     alerts: AlertSettings;
 }
 
-// --- Nuevo Tipo para Información de la Empresa ---
-export interface CompanyInfo {
-    name: string;
-    tradeName: string;
-    ruc: string;
-    fiscalAddress: string;
-    branchAddress?: string;
+// --- Tipos para Información de la Empresa (Flexible) ---
+export type CompanyInfoDetails = {
+    label: string;
+    value: string;
+}[];
+
+export interface MyCompany {
+    id: string;
+    profileName: string; // Nombre para identificarlo en la app
+    details: CompanyInfoDetails;
 }
+
 
 // --- Tipos para Módulo de Compras ---
 export type PurchaseOrderStatus = 'BORRADOR' | 'EMITIDA' | 'RECIBIDA' | 'CANCELADA';
@@ -104,6 +108,7 @@ export interface PurchaseOrder {
     id: string;
     orderNumber: string;
     supplierId: string;
+    issuingCompanyId: string; // Nuevo: ID de la empresa que emite la OC
     issueDate: string;
     deliveryDate: string;
     status: PurchaseOrderStatus;

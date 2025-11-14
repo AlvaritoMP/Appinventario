@@ -33,10 +33,11 @@ const Input = ({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> 
 
 
 export const PurchaseOrderFormModal = ({ onClose, prefillItems }: { onClose: () => void, prefillItems?: Product[] }) => {
-    const { suppliers, products } = useInventoryState();
+    const { suppliers, products, myCompanies } = useInventoryState();
     const dispatch = useInventoryDispatch();
 
     const [supplierId, setSupplierId] = useState('');
+    const [issuingCompanyId, setIssuingCompanyId] = useState(myCompanies[0]?.id || '');
     const [deliveryDate, setDeliveryDate] = useState('');
     const [items, setItems] = useState<PurchaseOrderItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -89,8 +90,8 @@ export const PurchaseOrderFormModal = ({ onClose, prefillItems }: { onClose: () 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!supplierId || items.length === 0) {
-            alert("Por favor, seleccione un proveedor y añada al menos un producto.");
+        if (!supplierId || !issuingCompanyId || items.length === 0) {
+            alert("Por favor, seleccione una empresa emisora, un proveedor y añada al menos un producto.");
             return;
         }
 
@@ -99,6 +100,7 @@ export const PurchaseOrderFormModal = ({ onClose, prefillItems }: { onClose: () 
             payload: {
                 purchaseOrderData: {
                     supplierId,
+                    issuingCompanyId,
                     issueDate: new Date().toISOString(),
                     deliveryDate: deliveryDate || new Date().toISOString(),
                     items
@@ -111,7 +113,14 @@ export const PurchaseOrderFormModal = ({ onClose, prefillItems }: { onClose: () 
     return (
         <Modal isOpen={true} onClose={onClose} title="Crear Orden de Compra">
             <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Empresa Emisora</label>
+                        <select value={issuingCompanyId} onChange={e => setIssuingCompanyId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">
+                            <option value="">Seleccione una empresa...</option>
+                            {myCompanies.map(c => <option key={c.id} value={c.id}>{c.profileName}</option>)}
+                        </select>
+                    </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-400 mb-1">Proveedor</label>
                         <select value={supplierId} onChange={e => setSupplierId(e.target.value)} required className="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2">

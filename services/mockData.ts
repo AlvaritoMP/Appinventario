@@ -1,12 +1,28 @@
-import { Product, LogEntry, Warehouse, InventoryItem, User, UserRole, UserWarehouseAccess, CompanyInfo, Supplier, PurchaseOrder } from '../types';
+import { Product, LogEntry, Warehouse, InventoryItem, User, UserRole, UserWarehouseAccess, MyCompany, Supplier, PurchaseOrder } from '../types';
 
-export const mockCompanyInfo: CompanyInfo = {
-    name: "MULTIDISTRIBUCIONES",
-    tradeName: "EMPRESA SIMPLE SAC",
-    ruc: "20200200200",
-    fiscalAddress: "Manzana X lote 5 (1er.piso) Urb.Covicorti Trujillo - Trujillo - La Libertad",
-    branchAddress: "Av. Húsares de Junín 1248 Urb.La Merced III Trujillo - Trujillo - La Libertad",
-};
+export const mockMyCompanies: MyCompany[] = [
+    {
+        id: 'mc1',
+        profileName: 'Empresa Principal (Multidistribuciones)',
+        details: [
+            { label: "Nombre Comercial", value: "MULTIDISTRIBUCIONES" },
+            { label: "Razón Social", value: "EMPRESA SIMPLE SAC" },
+            { label: "RUC", value: "20200200200" },
+            { label: "Dirección Fiscal", value: "Manzana X lote 5 (1er.piso) Urb.Covicorti Trujillo - Trujillo - La Libertad" },
+            { label: "Sucursal", value: "Av. Húsares de Junín 1248 Urb.La Merced III Trujillo - Trujillo - La Libertad" },
+        ]
+    },
+    {
+        id: 'mc2',
+        profileName: 'Negocio Secundario (Ferretería)',
+        details: [
+             { label: "Nombre Comercial", value: "FERRETERÍA EL TORNILLO SAC" },
+             { label: "Razón Social", value: "FERRETERÍA EL TORNILLO SAC" },
+             { label: "RUC", value: "20998877665" },
+             { label: "Dirección Fiscal", value: "Av. Industrial 123, Lima" },
+        ]
+    }
+];
 
 export const mockWarehouses: Warehouse[] = [
   { id: 'w1', name: 'Almacén Principal', location: '150141 - AV LOS GERANIOS 321' },

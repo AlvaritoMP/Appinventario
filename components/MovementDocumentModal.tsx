@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogEntry, CompanyInfo } from '../types';
+import { LogEntry } from '../types';
 import { useInventoryState } from '../context/InventoryContext';
 import { ICONS } from '../constants';
 import { generateGRE_API, GREResponse } from '../services/sunat_api';
@@ -173,9 +173,18 @@ const GuiaDespachoContent: React.FC<{ logEntries: LogEntry[] }> = ({ logEntries 
 };
 
 const GuiaRemisionContent: React.FC<{ logEntries: LogEntry[] }> = ({ logEntries }) => {
-    const { companyInfo, users, warehouses } = useInventoryState();
+    // FIX: Replaced non-existent `companyInfo` with `myCompanies` from inventory state.
+    const { myCompanies, users, warehouses } = useInventoryState();
     const qrCanvasRef = useRef<HTMLCanvasElement>(null);
     
+    // Assume the first company profile is the issuer for this document
+    const issuingCompany = myCompanies[0];
+
+    const getCompanyField = (label: string): string => {
+        if (!issuingCompany) return `[${label} no definido]`;
+        return issuingCompany.details.find(d => d.label === label)?.value || `[${label} no definido]`;
+    };
+
     const [transportista, setTransportista] = useState({ placa: '', dni: '', peso: '100' });
     const [observaciones, setObservaciones] = useState('Doc. Referencia: Factura:F001-00000066');
     const [apiStatus, setApiStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -184,27 +193,31 @@ const GuiaRemisionContent: React.FC<{ logEntries: LogEntry[] }> = ({ logEntries 
     const salidaLogs = logEntries.filter(l => l.type === 'SALIDA');
     const mainLog = salidaLogs[0];
     if (!mainLog) return <div>Error: No hay registros de salida para generar la guía.</div>;
+    if (!issuingCompany) return <div>Error: No se ha configurado ninguna empresa emisora.</div>;
 
     // Asumimos que el destinatario es JAYCO (mock data)
     const destinatario = users.find(u => u.name.includes('JAYCO'));
     const puntoPartida = warehouses.find(w => w.name === mainLog.warehouseName)?.location || 'N/A';
     const puntoLlegada = warehouses.find(w => w.name === logEntries.find(l => l.type === 'ENTRADA')?.warehouseName)?.location || '150140 - AV. CAMINOS DEL INCA...';
     
+    const companyRUC = getCompanyField("RUC");
+
     useEffect(() => {
-        if (qrCanvasRef.current) {
+        if (qrCanvasRef.current && companyRUC && window.QRious) {
             new window.QRious({
                 element: qrCanvasRef.current,
-                value: `RUC: ${companyInfo.ruc} | SERIE: TS01 | NUMERO: 00000019 | TIPO: 09`,
+                value: `RUC: ${companyRUC} | SERIE: TS01 | NUMERO: 00000019 | TIPO: 09`,
                 size: 120,
                 padding: 0
             });
         }
-    }, [companyInfo.ruc]);
+    }, [companyRUC]);
 
     const handleEmitirGRE = async () => {
+        if (!companyRUC) return;
         setApiStatus('loading');
         const payload = {
-            companyInfo: { ruc: companyInfo.ruc },
+            companyInfo: { ruc: companyRUC },
             destinatario: {
                 nombre: destinatario?.name || 'Cliente Varios',
                 ruc: '20602640281' // Hardcoded RUC from image
@@ -240,15 +253,15 @@ const GuiaRemisionContent: React.FC<{ logEntries: LogEntry[] }> = ({ logEntries 
                         <span>AQUÍ</span>
                     </div>
                     <div>
-                        <p className="font-bold">{companyInfo.name}</p>
-                        <p className="font-bold">{companyInfo.tradeName}</p>
-                        <p><span className="font-semibold">Dirección fiscal:</span> {companyInfo.fiscalAddress}</p>
-                        <p><span className="font-semibold">Sucursal:</span> {companyInfo.branchAddress}</p>
+                        <p className="font-bold">{getCompanyField("Razón Social")}</p>
+                        <p className="font-bold">{getCompanyField("Nombre Comercial")}</p>
+                        <p><span className="font-semibold">Dirección fiscal:</span> {getCompanyField("Dirección Fiscal")}</p>
+                        <p><span className="font-semibold">Sucursal:</span> {getCompanyField("Sucursal")}</p>
                     </div>
                 </div>
                 <div className="col-span-1"></div>
                 <div className="col-span-1 border-2 border-black rounded-lg text-center p-2 h-24 flex flex-col justify-center">
-                    <p className="font-bold text-lg">R.U.C. {companyInfo.ruc}</p>
+                    <p className="font-bold text-lg">R.U.C. {companyRUC}</p>
                     <p className="font-bold text-lg">GUIA DE REMISIÓN</p>
                     <p className="font-bold text-lg">ELECTRÓNICA REMITENTE</p>
                     <p className="text-base">N° TS01 - 00000019</p>

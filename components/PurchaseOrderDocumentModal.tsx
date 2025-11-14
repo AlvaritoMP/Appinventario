@@ -28,14 +28,24 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-4xl' }: { i
 
 
 const PurchaseOrderContent = ({ po }: { po: PurchaseOrder }) => {
-    const { suppliers, companyInfo, currentUser } = useInventoryState();
+    const { suppliers, myCompanies, currentUser } = useInventoryState();
     const supplier = suppliers.find(s => s.id === po.supplierId);
+    const issuingCompany = myCompanies.find(c => c.id === po.issuingCompanyId);
+
+    const getCompanyField = (label: string) => {
+        if (!issuingCompany) return `[Empresa no encontrada]`;
+        return issuingCompany.details.find(field => field.label === label)?.value || `[${label} no definido]`;
+    };
+
+    if (!issuingCompany) {
+        return <div className="p-6 text-red-500">Error: No se pudo encontrar la información de la empresa emisora para esta orden de compra.</div>
+    }
 
     return (
         <div className="p-6 bg-white text-gray-900 text-sm" id="po-document">
             <header className="grid grid-cols-2 gap-8 pb-4 border-b">
                 <div>
-                    <h1 className="text-4xl font-bold text-gray-800">RANSA</h1>
+                    <h1 className="text-4xl font-bold text-gray-800">{getCompanyField("Nombre Comercial")}</h1>
                     <p className="text-xs text-gray-600 mt-2">Estado: <span className="font-semibold">{po.status}</span></p>
                 </div>
                 <div className="text-right">
@@ -55,9 +65,9 @@ const PurchaseOrderContent = ({ po }: { po: PurchaseOrder }) => {
                 </div>
                 <div>
                     <h3 className="font-bold mb-1">Centro / Sede</h3>
-                    <p className="font-semibold">{companyInfo.tradeName}</p>
-                    <p>{companyInfo.ruc}</p>
-                    <p>{companyInfo.fiscalAddress}</p>
+                    <p className="font-semibold">{getCompanyField("Razón Social")}</p>
+                    <p>{getCompanyField("RUC")}</p>
+                    <p>{getCompanyField("Dirección Fiscal")}</p>
                 </div>
                 <div>
                     <h3 className="font-bold mb-1">Solicitante</h3>
@@ -113,7 +123,7 @@ const PurchaseOrderContent = ({ po }: { po: PurchaseOrder }) => {
             
             <footer className="mt-12 text-xs text-gray-500 border-t pt-4">
                 <h4 className="font-bold text-gray-700 mb-2">RETRIBUCIÓN, FORMA Y OPORTUNIDAD DE PAGO.-</h4>
-                <p>Las partes acuerdan que el monto de la retribución que pagará RANSA en calidad de contraprestación por EL SERVICIO a ejecutar por EL PROVEEDOR, será de acuerdo con las disposiciones establecidas en la primera parte de la presente orden de servicio...</p>
+                <p>Las partes acuerdan que el monto de la retribución que pagará {getCompanyField("Nombre Comercial")} en calidad de contraprestación por EL SERVICIO a ejecutar por EL PROVEEDOR, será de acuerdo con las disposiciones establecidas en la primera parte de la presente orden de servicio...</p>
             </footer>
         </div>
     );
